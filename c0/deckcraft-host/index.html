@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>C0deck</title>
+  <link data-trunk rel="rust" href="../../apps/deckcraft-web/Cargo.toml" data-bin="deckcraft-web" data-cargo-features="page-control" data-cargo-no-default-features data-wasm-opt="z" data-weak-refs>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    #deckcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #deckcraft_loading { display: none; }
+  </style>
+  <script>
+    const url = new URL(window.location.href);
+    url.searchParams.set('blank', '');
+    window.history.replaceState(null, '', url);
+    window.addEventListener('deckcraft-control-ready', () => {
+      window.__c0hostRequest = (json) => window.__deckcraftControl(json);
+    }, { once: true });
+  </script>
+</head>
+<body>
+  <canvas id="deckcraft_canvas"></canvas>
+  <div id="deckcraft_loading"></div>
+</body>
+</html>

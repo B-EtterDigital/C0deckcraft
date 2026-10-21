@@ -737,7 +737,7 @@ fn home(app: &mut SlideApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcome) 
         });
     }
     ui.add_space(30.0);
-    ui.hyperlink_to("Join the ArtCraft community on Discord", deckcraft_engine::links::DISCORD);
+    crate::c0_host::community_link(app, ui, "Join the ArtCraft community on Discord", deckcraft_engine::links::DISCORD);
 }
 
 /// New: a blank presentation, then every theme and starter template, with a search box.
@@ -1381,8 +1381,7 @@ fn account(app: &mut SlideApp, ui: &mut Ui) {
             ) {
                 let _ = app.run("app.about", json!({}));
             }
-            ui.hyperlink_to("Join our community on Discord", deckcraft_engine::links::DISCORD);
-            ui.hyperlink_to("Source on GitHub", deckcraft_engine::links::GITHUB);
+            crate::c0_host::account_links(app, ui);
         });
     });
 }

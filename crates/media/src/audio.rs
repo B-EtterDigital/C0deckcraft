@@ -67,6 +67,7 @@ impl AsRef<[u8]> for Shared {
 
 /// Decode the audio of `bytes` (an audio file, or the audio track of a video) to PCM.
 pub fn decode(bytes: &Bytes) -> Result<Pcm> {
+    crate::c0_codecs::check(bytes)?;
     match Container::sniff(bytes) {
         Container::Asf => Err(MediaError::Unsupported("Windows Media Audio (WMA)".into())),
         Container::Ogg => match decode_ogg_opus(bytes) {

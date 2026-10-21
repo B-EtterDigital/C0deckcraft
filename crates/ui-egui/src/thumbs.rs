@@ -94,6 +94,7 @@ fn list(app: &mut SlideApp, ui: &mut Ui) {
             });
         }
         let (row, resp) = ui.allocate_exact_size(vec2(width, th + 16.0), Sense::click_and_drag());
+        crate::c0_host::scroll(app, ui, i, row);
         let img = crate::textures::device_pixel_rect(Rect::from_min_size(pos2(row.min.x + 30.0, row.min.y + 6.0), vec2(tw, th)), ppp);
         rects.push((i, row));
         let p = ui.painter();

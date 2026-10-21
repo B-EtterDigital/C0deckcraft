@@ -14,11 +14,16 @@ name = "deckcraft-web"
 path = "src/main.rs"
 
 [dependencies]
-deckcraft-engine = { workspace = true }
-deckcraft-ui-egui = { workspace = true }
+deckcraft-engine = { path = "../../crates/engine", default-features = false }
+deckcraft-ui-egui = { path = "../../crates/ui-egui", default-features = false }
 egui = { workspace = true }
 log = { workspace = true }
 serde_json = { workspace = true }
+
+[features]
+default = ["patent-codecs"]
+patent-codecs = ["deckcraft-ui-egui/default"]
+page-control = []
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # `wgpu` pulls egui-wgpu's defaults: WebGPU plus the WebGL2 fallback.
@@ -27,4 +32,4 @@ rfd = { workspace = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location", "CssStyleDeclaration"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location", "CssStyleDeclaration", "Event", "EventTarget", "File", "HtmlInputElement", "FileList"] }

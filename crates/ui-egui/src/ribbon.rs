@@ -167,7 +167,7 @@ pub fn show(app: &mut SlideApp, ui: &mut Ui) {
         // PowerPoint.
         let mut x = rect.min.x + 12.0;
         let y = rect.min.y + 2.0;
-        {
+        if app.chrome.file_tab {
             let w = ui.fonts_mut(|f| f.layout_no_wrap("File".to_string(), theme::font(13.0), t.text).size().x) + 18.0;
             let r = Rect::from_min_size(pos2(x, y), vec2(w, 24.0));
             let resp = ui.interact(r, ui.id().with("tab_file"), Sense::click());
@@ -2133,11 +2133,7 @@ fn record(app: &mut SlideApp, ui: &mut Ui) {
             }
         }
     });
-    group(ui, |ui| {
-        if big_button(ui, Icon::Help, "Learn\nMore", true).clicked() {
-            app.open_url(deckcraft_engine::links::APP_PAGE);
-        }
-    });
+    crate::c0_host::learn_more(app, ui);
 }
 
 fn comment_nav(app: &mut SlideApp, ui: &mut Ui, forward: bool) {

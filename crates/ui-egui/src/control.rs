@@ -79,7 +79,7 @@ fn wrap(r: Result<Value, String>) -> Outcome {
 
 pub fn all_commands(app: &SlideApp) -> Value {
     let mut v: Vec<Value> = app.session.commands().into_iter().map(|c| serde_json::to_value(c).unwrap_or_default()).collect();
-    for (id, label, sc, params) in crate::UI_COMMANDS {
+    for (id, label, sc, params) in crate::UI_COMMANDS.iter().filter(|c| c.0 != "app.links" || app.chrome.community_links) {
         v.push(json!({"id": id, "label": label, "shortcut": sc, "params": params, "enabled": true, "ui": true}));
     }
     Value::Array(v)
@@ -136,6 +136,7 @@ pub fn handle(app: &mut SlideApp, ctx: &egui::Context, req: &ControlRequest) -> 
     let p = &req.params;
     let s = |k: &str| p.get(k).and_then(Value::as_str);
     match req.method.as_str() {
+        method if method.starts_with("c0.") => wrap(crate::c0_host::handle(app, ctx, method, p)),
         "engine.execute" | "ui.menu.invoke" | "command" => {
             let Some(id) = s("command").or(s("id")) else { return err("missing `command`") };
             let params = p.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}));

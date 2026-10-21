@@ -39,50 +39,6 @@ fn dec_err(e: impl std::fmt::Display) -> MediaError {
 
 // ---------- codecs ----------
 
-struct H264 {
-    avcc: Vec<u8>,
-    dec: deckcraft_h264::Decoder,
-}
-
-impl H264 {
-    fn new(avcc: Vec<u8>) -> Result<H264> {
-        let dec = deckcraft_h264::Decoder::from_avcc(&avcc).map_err(dec_err)?;
-        Ok(H264 { avcc, dec })
-    }
-    fn convert(p: deckcraft_h264::Picture) -> Pic {
-        let (w, h) = (p.width as usize, p.height as usize);
-        let planes = Planes {
-            y: &p.y,
-            u: &p.u,
-            v: &p.v,
-            y_stride: p.y_stride,
-            c_stride: p.uv_stride,
-            width: w,
-            height: h,
-            sx: u32::from(p.chroma_width < p.width),
-            sy: u32::from(p.chroma_height < p.height),
-            bits: 8,
-            mono: p.chroma_width == 0,
-        };
-        let rgba = yuv::to_rgba(&planes, Matrix::from_code(p.color.matrix, p.height), p.color.full_range);
-        Pic { pts: p.pts, width: p.width, height: p.height, rgba }
-    }
-}
-
-impl Codec for H264 {
-    fn decode(&mut self, sample: &[u8], pts: i64) -> Result<Vec<Pic>> {
-        Ok(self.dec.decode(sample, pts).map_err(dec_err)?.into_iter().map(H264::convert).collect())
-    }
-    fn flush(&mut self) -> Vec<Pic> {
-        self.dec.flush().into_iter().map(H264::convert).collect()
-    }
-    fn reset(&mut self) {
-        if let Ok(d) = deckcraft_h264::Decoder::from_avcc(&self.avcc) {
-            self.dec = d;
-        }
-    }
-}
-
 /// Convert an HEVC / VP9 style picture (planes of u8 or u16 with strides).
 macro_rules! plane_pic {
     ($p:expr, $Plane:path, $sx:expr, $sy:expr, $matrix:expr, $full:expr, $mono:expr) => {{
@@ -118,37 +74,7 @@ macro_rules! plane_pic {
     }};
 }
 
-struct Hevc {
-    hvcc: Vec<u8>,
-    dec: deckcraft_hevc::Decoder,
-}
-
-impl Hevc {
-    fn new(hvcc: Vec<u8>) -> Result<Hevc> {
-        let dec = deckcraft_hevc::Decoder::from_hvcc(&hvcc).map_err(dec_err)?;
-        Ok(Hevc { hvcc, dec })
-    }
-    fn convert(p: deckcraft_hevc::Picture) -> Pic {
-        let sx = u32::from(p.chroma_width < p.width);
-        let sy = u32::from(p.chroma_height < p.height);
-        let m = Matrix::from_code(p.color.matrix, p.height);
-        plane_pic!(&p, deckcraft_hevc::Plane, sx, sy, m, p.color.full_range, p.chroma_width == 0)
-    }
-}
-
-impl Codec for Hevc {
-    fn decode(&mut self, sample: &[u8], pts: i64) -> Result<Vec<Pic>> {
-        Ok(self.dec.decode(sample, pts).map_err(dec_err)?.into_iter().map(Hevc::convert).collect())
-    }
-    fn flush(&mut self) -> Vec<Pic> {
-        self.dec.flush().into_iter().map(Hevc::convert).collect()
-    }
-    fn reset(&mut self) {
-        if let Ok(d) = deckcraft_hevc::Decoder::from_hvcc(&self.hvcc) {
-            self.dec = d;
-        }
-    }
-}
+include!("c0_patent_codecs.rs");
 
 struct Vp9 {
     dec: deckcraft_vp9::Decoder,
@@ -278,7 +204,9 @@ fn open_track(bytes: &[u8]) -> Result<(Demux, Track, Box<dyn Codec>)> {
             let t = &f.tracks[ti];
             let entry = t.entries.first().ok_or(MediaError::Missing("video track"))?;
             let codec: Box<dyn Codec> = match &entry.codec {
+                #[cfg(feature = "patent-codecs")]
                 CodecConfig::Avc(a) => Box::new(H264::new(a.to_bytes())?),
+                #[cfg(feature = "patent-codecs")]
                 CodecConfig::Hevc(c) => Box::new(Hevc::new(c.to_bytes())?),
                 CodecConfig::Vp9(_) => Box::new(Vp9 { dec: deckcraft_vp9::Decoder::new() }),
                 CodecConfig::Av1(c) => Box::new(Av1 { dec: deckcraft_av1::Decoder::new(), config_obus: c.config_obus.clone(), primed: false }),
@@ -298,7 +226,9 @@ fn open_track(bytes: &[u8]) -> Result<(Demux, Track, Box<dyn Codec>)> {
                 .ok_or(MediaError::Missing("video track"))?;
             let t = &f.tracks[ti];
             let codec: Box<dyn Codec> = match &t.codec {
+                #[cfg(feature = "patent-codecs")]
                 MkvCodec::Avc { avcc } => Box::new(H264::new(avcc.clone())?),
+                #[cfg(feature = "patent-codecs")]
                 MkvCodec::Hevc { hvcc } => Box::new(Hevc::new(hvcc.clone())?),
                 MkvCodec::Vp9 { .. } => Box::new(Vp9 { dec: deckcraft_vp9::Decoder::new() }),
                 MkvCodec::Av1 { av1c } => Box::new(Av1 {
@@ -381,6 +311,7 @@ pub struct VideoDecoder {
 
 impl VideoDecoder {
     pub fn open(bytes: Bytes) -> Result<VideoDecoder> {
+        crate::c0_codecs::check(&bytes)?;
         let (demux, track, codec) = open_track(&bytes)?;
         Ok(VideoDecoder { bytes, demux, track, codec, next: 0, ready: VecDeque::new(), skip_before: f64::NEG_INFINITY, eos: false, errors: 0 })
     }

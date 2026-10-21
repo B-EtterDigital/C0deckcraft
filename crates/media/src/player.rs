@@ -293,7 +293,7 @@ impl Player {
     /// paused voice when `from` is `None` and `media_key` is unchanged. A different `media_key`
     /// replaces the decoded audio and starts the new clip (at `from`, or at its start).
     pub fn play(&mut self, key: u64, media_key: u64, bytes: &Bytes, spec: VoiceSpec, from: Option<f64>) {
-        let audio = spec.audio.then(|| self.slot(media_key, bytes));
+        let audio = (spec.audio || crate::c0_codecs::check(bytes).is_err()).then(|| self.slot(media_key, bytes));
         self.with(|m| {
             if let Some(v) = m.voices.iter_mut().find(|v| v.key == key) {
                 let same = v.media_key == media_key;

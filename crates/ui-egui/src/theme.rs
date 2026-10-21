@@ -2,6 +2,7 @@
 
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, Stroke, Visuals};
 use serde::{Deserialize, Serialize};
+pub mod host;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,12 +109,13 @@ impl Tokens {
         }
     }
     pub fn get(ctx: &egui::Context) -> Self {
-        if ctx.global_style().visuals.dark_mode { Self::dark() } else { Self::light() }
+        host::resolve(ctx, if ctx.global_style().visuals.dark_mode { Self::dark() } else { Self::light() })
     }
 }
 
 /// Apply tokens to egui's style.
 pub fn apply(ctx: &egui::Context, t: &Tokens) {
+    let t = &host::resolve(ctx, *t);
     let mut v = if t.dark { Visuals::dark() } else { Visuals::light() };
     v.panel_fill = t.chrome;
     v.window_fill = t.card;

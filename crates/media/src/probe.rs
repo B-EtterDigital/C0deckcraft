@@ -48,6 +48,7 @@ fn ms(secs: f64) -> u64 {
 
 /// Probe `bytes`.
 pub fn probe(bytes: &Bytes) -> Result<MediaInfo> {
+    crate::c0_codecs::check(bytes)?;
     let c = Container::sniff(bytes);
     let mut info = match c {
         Container::Mp4 => probe_mp4(bytes)?,

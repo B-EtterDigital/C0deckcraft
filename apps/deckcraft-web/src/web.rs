@@ -28,7 +28,10 @@ pub fn start() {
         {
             create.instance_descriptor.backends = eframe::wgpu::Backends::GL;
         }
-        let result = eframe::WebRunner::new()
+        let runner = eframe::WebRunner::new();
+        #[cfg(feature = "page-control")]
+        crate::page_control::runner(&runner);
+        let result = runner
             .start(
                 canvas,
                 options,
@@ -49,6 +52,8 @@ pub fn start() {
                     if q.contains("show") {
                         app.start_show(0, false);
                     }
+                    #[cfg(feature = "page-control")]
+                    let app = crate::page_control::attach(app, &cc.egui_ctx, [PRESENTATION_EXTS, PICTURE_EXTS, AUDIO_EXTS, VIDEO_EXTS]);
                     Ok(Box::new(WebShell { app, inbox }))
                 }),
             )
@@ -84,7 +89,7 @@ impl eframe::App for WebShell {
             let ctx = ctx.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 let name = f.path().file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "dropped".into());
-                match f.bytes_async().await {
+                match deckcraft_ui_egui::c0_host::read_drop(&f, &inbox, cfg!(feature = "page-control")).await {
                     Ok(bytes) => {
                         push_inbox(&inbox, InboxEvent::File(InboxFile { id, name, bytes }));
                         ctx.request_repaint();

@@ -1259,6 +1259,7 @@ fn media(s: &mut Session, p: &Value, video: bool) -> Result<Value> {
     let (name, bytes) = media_bytes(p, cmd)?;
     let ct = content_type(&name, &bytes);
     let bytes = std::sync::Arc::new(bytes);
+    deckcraft_media::c0_codecs::check(&bytes).map_err(|e| bad(cmd, e.to_string()))?;
     let info = deckcraft_media::probe(&bytes);
     let has_video = info.as_ref().is_ok_and(|i| i.video.is_some());
     let has_audio = info.as_ref().is_ok_and(|i| i.audio.is_some());

@@ -8,6 +8,7 @@
 
 pub mod animtimeline;
 pub mod backstage;
+pub mod c0_host;
 pub mod canvas;
 pub mod control;
 pub mod credits;
@@ -433,6 +434,8 @@ struct AnimPreview {
 }
 
 pub struct SlideApp {
+    pub chrome: c0_host::Chrome,
+    pub(crate) host: c0_host::State,
     /// Table Design's border pen (`color`, `width`, `dash` for `table.borders`).
     pub table_pen: serde_json::Value,
     pub session: Session,
@@ -533,6 +536,8 @@ impl SlideApp {
     pub fn new(session: Session, mut services: Services) -> Self {
         let audio_out = services.audio_out.take();
         SlideApp {
+            chrome: Default::default(),
+            host: Default::default(),
             table_pen: serde_json::json!({"width": 1.0}),
             session,
             services,
@@ -654,6 +659,7 @@ impl SlideApp {
     /// Run a command by id (UI commands here, everything else in the engine). Errors show in the
     /// status bar and are returned.
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        c0_host::preflight_media(self, id, &params)?;
         let r = if UI_COMMANDS.iter().any(|c| c.0 == id) {
             self.run_ui(id, &params)
         } else {
@@ -684,32 +690,10 @@ impl SlideApp {
         self.backstage.is_some() && self.session.active().is_some()
     }
 
-    /// Opens the File tab's view on `page` (keeping its state when it is already open).
-    pub fn open_backstage(&mut self, page: backstage::Page) {
-        let key = self.docs_key();
-        match &mut self.backstage {
-            Some(b) => b.go(page),
-            None => self.backstage = Some(backstage::Backstage::new(page, key)),
-        }
-    }
-
     /// Back to the presentation (no effect on the start screen, where nothing is open).
     pub fn close_backstage(&mut self) {
         if self.session.active().is_some() {
             self.backstage = None;
-        }
-    }
-
-    /// Keeps the File tab's view in step with the open presentations: it closes when one is
-    /// opened, created or closed (the result shows), and it is the start screen when none is open.
-    fn sync_backstage(&mut self) {
-        let key = self.docs_key();
-        let has_doc = self.session.active().is_some();
-        let stale = self.backstage.as_ref().is_some_and(|b| b.docs != key);
-        if has_doc && stale {
-            self.backstage = None;
-        } else if !has_doc && (stale || self.backstage.is_none()) {
-            self.backstage = Some(backstage::Backstage::new(backstage::Page::Home, key));
         }
     }
 
@@ -1052,7 +1036,7 @@ impl SlideApp {
                 let d = p.get("id").and_then(Value::as_str).ok_or("missing `id`")?;
                 self.dialog = Some(dialogs::Dialog::new(d));
             }
-            "app.links" => {
+            "app.links" if self.chrome.community_links => {
                 use deckcraft_engine::links::*;
                 return Ok(json!({"discord": DISCORD, "website": WEBSITE, "apps": APPS, "appPage": APP_PAGE, "github": GITHUB}));
             }
@@ -1559,6 +1543,7 @@ impl SlideApp {
             self.perf.fps = self.perf.fps * 0.9 + (1.0 / dt).min(240.0) * 0.1;
         }
         self.last_time = now;
+        c0_host::tick(self, ctx);
         self.drain_control(ctx);
         self.poll_opening();
         if self.fonts_ready {
@@ -1816,10 +1801,10 @@ impl SlideApp {
         self.sync_backstage();
         self.keyboard(&ctx);
         self.sync_backstage();
-        ribbon::title_bar(self, ui);
+        c0_host::title_bar(self, ui);
         if self.backstage.is_none() && self.session.active().is_some() {
             ribbon::show(self, ui);
-            status::status_bar(self, ui);
+            c0_host::status_bar(self, ui);
         }
         let now = ui.input(|i| i.time);
         if self.tick_anim_preview(now) {

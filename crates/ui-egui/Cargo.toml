@@ -16,8 +16,8 @@ deckcraft-fonts = { workspace = true }
 deckcraft-text = { workspace = true }
 deckcraft-render = { workspace = true }
 deckcraft-anim = { workspace = true }
-deckcraft-engine = { workspace = true }
-deckcraft-media = { workspace = true }
+deckcraft-engine = { path = "../engine", default-features = false }
+deckcraft-media = { path = "../media", default-features = false }
 egui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -28,6 +28,9 @@ js-sys = "0.3"
 
 [dev-dependencies]
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
+
+[features]
+default = ["deckcraft-engine/default"]
 
 [build-dependencies]
 serde_json = { workspace = true }

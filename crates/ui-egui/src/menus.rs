@@ -109,7 +109,7 @@ pub fn palette(app: &mut SlideApp, ctx: &egui::Context) {
             let r = ui.add(egui::TextEdit::singleline(&mut query).hint_text("Search commands…").desired_width(f32::INFINITY).font(theme::font(15.0)));
             r.request_focus();
             let q = query.to_lowercase();
-            let items = palette_items(&app.session, &q);
+            let items = crate::c0_host::palette(app, palette_items(&app.session, &q));
             let (down, up, enter, esc) = ui.input(|i| {
                 (
                     i.key_pressed(egui::Key::ArrowDown),
