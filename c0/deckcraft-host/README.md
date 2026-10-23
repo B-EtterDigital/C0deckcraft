@@ -101,7 +101,7 @@ All five `Chrome` fields default to true, preserving upstream behavior and remai
 serialized preferences/documents. The host can change them at runtime:
 
 ```json
-{"method":"c0.set","params":{"panels":{"title_bar":false,"file_tab":false,"start_screen":false,"community_links":false,"status_bar":false,"ribbon_collapsed":true,"notes":false,"ruler":false}}}
+{"method":"c0.set","params":{"panels":{"title_bar":false,"file_tab":false,"start_screen":false,"community_links":false,"status_bar":false,"ribbon_collapsed":true,"notes":false,"ruler":false,"toolbar_double":true,"right_dock_collapsed":true}}}
 ```
 
 | `panels` key | Meaning |
@@ -114,8 +114,18 @@ serialized preferences/documents. The host can change them at runtime:
 | `ribbon_collapsed` | Existing ribbon-collapse state |
 | `notes` | Existing notes-pane state |
 | `ruler` | Existing ruler state |
+| `toolbar` | Default true. False folds the ribbon's command card to the tab row; tab clicks cannot bring it back while the host holds it off |
+| `toolbar_double` | Default false. True draws the ribbon compact (scaled to 0.8) in the same dock |
+| `toolbar_floating` | Default false. True lifts the ribbon into a movable strip over the canvas area (drag its grip row). Combines with `toolbar_double` |
+| `right_dock_collapsed` | Default false. True folds the task pane to a narrow icon strip (one icon per pane, plus Unfold); the open pane is remembered and returns on unfold. An icon, or any other way of opening a pane, unfolds the dock |
 
 All values must be booleans. Unknown keys are reported as `panels.<key>`; wrong types as invalid.
+The four tool keys are host state: they are not saved in decks or preferences and every default is the
+upstream layout. `c0.inspect.panes` reports `toolbar`, `toolbar_double`, `toolbar_floating` and
+`right_dock_collapsed` beside `notes`, `ruler` and `thumbnails`; `toolbarFloat.pos` is the strip's
+corner in points (`null` until it is moved). Code: `crates/ui-egui/src/c0_host/tools.rs`; tests:
+`crates/ui-egui/tests/c0_tools.rs`.
+
 About always retains DeckCraft's name, authors/contributors and MIT OR Apache-2.0 licence.
 Disabling File also closes Backstage immediately; it cannot reopen until reenabled.
 

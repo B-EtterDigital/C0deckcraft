@@ -143,6 +143,16 @@ def main():
             assert browser.guest("c0.goTo", {"slide": str(slide_id)})["index"] == 0
             assert browser.guest("c0.show", {"action": "start", "from": 0}) == {"showing": True}
             assert browser.guest("c0.show", {"action": "end"}) == {"showing": False}
+            defaults = browser.guest("c0.inspect")["panes"]
+            assert (defaults["toolbar"], defaults["toolbar_double"], defaults["toolbar_floating"], defaults["right_dock_collapsed"]) == (True, False, False, False)
+            for key, value in [("toolbar", False), ("toolbar_double", True), ("toolbar_floating", True), ("right_dock_collapsed", True)]:
+                reply = browser.guest("c0.set", {"panels": {key: value}})
+                assert reply["applied"] == ["panels." + key], reply
+                assert browser.guest("c0.inspect")["panes"][key] is value, key
+                browser.guest("c0.set", {"panels": {key: not value}})
+                assert browser.guest("c0.inspect")["panes"][key] is (not value), key
+            assert browser.guest("c0.set", {"panels": {"toolbar_triple": True}})["unknown"] == ["panels.toolbar_triple"]
+            print("PASS tool modes and right dock set and read back")
             settings = browser.guest("c0.set", {"themeTokens": {"accent": "#259080", "dark": "#ffffff", "text": 3}, "panels": {
                 "title_bar": False, "file_tab": False, "start_screen": False, "community_links": False, "status_bar": False,
                 "ribbon_collapsed": True, "notes": False, "ruler": False, "unknown": True,

@@ -23,7 +23,7 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `crates/ui-egui/src/control.rs` | 2 | One `c0.` dispatch arm; filter hidden `app.links` | Same control envelopes/queue | No |
 | `crates/ui-egui/src/credits.rs` | 2 | Render contributor names as plain labels when links are hidden | Covers both grab-bag and table GitHub links | No |
 | `crates/ui-egui/src/dialogs.rs` | 1 | About-link draw seam | Keep identity/credits/licence while removing links | No |
-| `crates/ui-egui/src/lib.rs` | 10 | Host state, lifecycle hook, title/status draw seams, guarded app.links, media preflight; relocate Backstage lifecycle | Keep host implementation in new files; reject restricted playback | No |
+| `crates/ui-egui/src/lib.rs` | 10 | Host state, lifecycle hook, title draw seam, one `c0_host::bars` call that draws ribbon, status bar and the folded dock strip, guarded app.links, media preflight; relocate Backstage lifecycle | Keep host implementation in new files; reject restricted playback | No |
 | `crates/ui-egui/src/menus.rs` | 1 | Filter the palette through host policy | Hidden app.links has no palette entry | No |
 | `crates/ui-egui/src/ribbon.rs` | 2 | Gate File; delegate the existing Learn More group | No File/Backstage or promotional button when disabled | No |
 | `crates/ui-egui/src/theme.rs` | 3 | Register overrides, one-line Tokens::get resolver, resolve widget styles on brightness changes | Runtime palette survives light/dark | Proposed: generic context-local palettes |
@@ -62,6 +62,11 @@ Native regression tests are exclusively new `crates/*/tests/c0_*.rs` files. No s
 was copied; GridCraft and WordCraft were read for transport/contract patterns only.
 
 ## Couplings to recheck on every upstream pull
+
+- `c0_host/tools.rs` mirrors `ribbon::show`'s reserved height (`28 + 4` collapsed, else `RIBBON_H + 20`)
+  and draws the unchanged `ribbon::show` inside a scaled/movable layer; `ribbon_collapsed` is forced
+  on for the call when `toolbar` is off. The folded dock hides the task pane by taking `ui.pane`
+  and restoring it on unfold. Recheck all three if `ribbon.rs` layout or `panes.rs` change.
 
 - `SlideApp::logic` must drain the ordinary control queue inside `WebRunner`'s unpainted logic
   pass. The bridge listener and `AppRunner::logic` API are eframe-version-sensitive. Maintain
