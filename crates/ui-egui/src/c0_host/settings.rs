@@ -33,6 +33,10 @@ pub fn set(app: &mut SlideApp, ctx: &egui::Context, p: &Value) -> Result<Value, 
             "ribbon_collapsed" => &mut app.ui.ribbon_collapsed,
             "notes" => &mut app.ui.notes,
             "ruler" => &mut app.ui.ruler,
+            "toolbar" => &mut app.host.tools.toolbar,
+            "toolbar_double" => &mut app.host.tools.double,
+            "toolbar_floating" => &mut app.host.tools.floating,
+            "right_dock_collapsed" => &mut app.host.tools.dock_collapsed,
             _ => {
                 unknown.push(name);
                 continue;
@@ -46,6 +50,7 @@ pub fn set(app: &mut SlideApp, ctx: &egui::Context, p: &Value) -> Result<Value, 
             None => invalid.push(name),
         }
     }
+    super::tools::settle(app);
     if !app.chrome.file_tab || (!app.chrome.start_screen && app.session.active().is_none()) {
         app.backstage = None;
     }

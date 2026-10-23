@@ -1803,8 +1803,7 @@ impl SlideApp {
         self.sync_backstage();
         c0_host::title_bar(self, ui);
         if self.backstage.is_none() && self.session.active().is_some() {
-            ribbon::show(self, ui);
-            c0_host::status_bar(self, ui);
+            c0_host::bars(self, ui);
         }
         let now = ui.input(|i| i.time);
         if self.tick_anim_preview(now) {

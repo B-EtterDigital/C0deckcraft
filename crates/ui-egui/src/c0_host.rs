@@ -6,11 +6,13 @@ mod drops;
 mod files;
 pub use files::validate_name;
 mod settings;
+mod tools;
 #[cfg(target_arch = "wasm32")]
 pub use drops::{FileReadBudget, read_drop, reserve_file_bytes};
 mod media;
 pub(crate) use chrome::{about_links, account_links, community_link, learn_more, palette, status_bar, title_bar};
 pub(crate) use media::preflight_media;
+pub(crate) use tools::bars;
 
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -42,6 +44,7 @@ impl Default for Chrome {
 pub(crate) struct State {
     pending: Option<files::Replacement>,
     pub scroll_to: Option<usize>,
+    pub(crate) tools: tools::Tools,
 }
 
 pub fn handle(app: &mut SlideApp, ctx: &egui::Context, method: &str, params: &Value) -> Result<Value, String> {
@@ -89,12 +92,14 @@ pub fn inspect(app: &SlideApp) -> Value {
             })
         })
         .collect();
+    let mut panes = json!({"notes": app.ui.notes, "ruler": app.ui.ruler, "thumbnails": state.is_some() && matches!(app.ui.view, crate::ViewMode::Normal | crate::ViewMode::Reading)});
+    tools::report(app, &mut panes);
     json!({
         "title": state.map(|s| s.title()), "dirty": state.is_some_and(|s| s.is_dirty()),
         "revision": state.map_or(0, |s| s.revision), "slideCount": slides.len(), "slides": slides,
         "currentSlide": state.filter(|s| !s.doc.slides.is_empty()).map(|s| s.selection.slide), "sections": sections,
         "canUndo": state.is_some_and(|s| !s.history.undo.is_empty()), "canRedo": state.is_some_and(|s| !s.history.redo.is_empty()),
-        "panes": {"notes": app.ui.notes, "ruler": app.ui.ruler, "thumbnails": state.is_some() && matches!(app.ui.view, crate::ViewMode::Normal | crate::ViewMode::Reading)},
+        "panes": panes, "toolbarFloat": tools::float_pos(app),
         "ribbonCollapsed": app.ui.ribbon_collapsed, "showing": app.show.is_some(),
         "theme": match app.ui.brightness { theme::Brightness::Light => "light", theme::Brightness::Dark => "dark" }
     })
