@@ -11,7 +11,6 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `apps/deckcraft-web/src/web.rs` | 7 | Retain the WebRunner, attach the control queue, lend picker filters, bound page drop reads | Unpainted control passes and bounded browser files without a second app | No |
 | `crates/engine/Cargo.toml` | 4 | Forward codec defaults while permitting a disabled dependency | Preserve standalone defaults; disable codecs transitively | Proposed: packaging option |
 | `crates/engine/src/cmd/insert.rs` | 1 | Check the codec policy before insertion | Return a clear app error instead of embedding restricted new media | Proposed: packaging option |
-| `crates/engine/src/recovery.rs` | 1 | Native-only process id entropy | `std::process::id()` is unsupported on wasm | Yes: isolated wasm bug fix; submission left to controller |
 | `crates/media/Cargo.toml` | 7 | Default-on `patent-codecs`, optional video decoder deps, optional symphonia AAC | Page graph excludes H.264/HEVC/AAC decoders | Proposed: packaging option |
 | `crates/media/src/audio.rs` | 1 | Policy at audio decode entry | Imported restricted streams also fail clearly | Proposed: packaging option |
 | `crates/media/src/lib.rs` | 1 | Register the policy module | Share one policy across probing, decoding and insertion | Proposed: packaging option |
@@ -29,7 +28,7 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `crates/ui-egui/src/theme.rs` | 3 | Register overrides, one-line Tokens::get resolver, resolve widget styles on brightness changes | Runtime palette survives light/dark | Proposed: generic context-local palettes |
 | `crates/ui-egui/src/thumbs.rs` | 1 | Consume host navigation scroll target | Selected slide is brought into the thumbnail viewport | Proposed: general navigation improvement |
 
-Total: 69 added lines in modified upstream files.
+Total: 68 added lines in modified upstream files.
 
 Ratchet: 69
 
