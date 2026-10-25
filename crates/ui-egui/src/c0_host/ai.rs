@@ -83,7 +83,12 @@ pub fn selection(app: &SlideApp) -> Result<Value, String> {
 fn one_step<T>(app: &mut SlideApp, label: &str, f: impl FnOnce(&mut SlideApp) -> Result<T, String>) -> Result<T, String> {
     let st = app.session.active().ok_or("no presentation open")?;
     let (doc, selection, history) = (st.doc.clone(), st.selection.clone(), st.history.clone());
+    // The Edit Points type remembered with the old deck, as the engine's own undo step keeps it.
+    let vertex_kind = app.session.tool.vertex_kind.clone();
     let result = f(app);
+    if result.is_err() {
+        app.session.tool.vertex_kind = vertex_kind.clone();
+    }
     let Some(st) = app.session.active_mut() else { return result };
     match result {
         Ok(v) => {
@@ -91,7 +96,7 @@ fn one_step<T>(app: &mut SlideApp, label: &str, f: impl FnOnce(&mut SlideApp) ->
                 st.history = history;
                 let h = &mut st.history;
                 h.costs.insert(std::sync::Arc::as_ptr(&doc) as usize, deckcraft_engine::undo_cost(&doc, &st.doc));
-                h.undo.push(deckcraft_engine::HistoryEntry { label: label.into(), doc, selection });
+                h.undo.push(deckcraft_engine::HistoryEntry { label: label.into(), doc, selection, vertex_kind });
                 h.redo.clear();
                 if h.undo.len() > h.limit.max(1) {
                     h.undo.remove(0);
