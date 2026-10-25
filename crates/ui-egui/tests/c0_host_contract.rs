@@ -244,3 +244,171 @@ fn unknown_methods_and_wrong_params_use_normal_error_envelopes() {
         assert!(result["error"].is_string());
     }
 }
+
+// ---------- c0.selection / c0.place (AI actions) ----------
+
+const PNG_1X1: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+const JPEG_1X1: &str = "/9j/4AAQSkZJRgABAgAAAQABAAD//gAPTGF2YzYxLjMuMTAwAP/bAEMACAQEBAQEBQUFBQUFBgYGBgYGBgYGBgYGBgcHBwgICAcHBwYGBwcICAgICQkJCAgICAkJCgoKDAwLCw4ODhERFP/EAEwAAQEAAAAAAAAAAAAAAAAAAAAGAQEBAAAAAAAAAAAAAAAAAAAGBxABAAAAAAAAAAAAAAAAAAAAABEBAAAAAAAAAAAAAAAAAAAAAP/AABEIAAIABAMBIgACEQADEQD/2gAMAwEAAhEDEQA/AIsAUX9//9k=";
+
+fn undo_len(app: &SlideApp) -> usize {
+    app.session.active().unwrap().history.undo.len()
+}
+
+fn deck() -> (SlideApp, egui::Context) {
+    let mut app = app();
+    app.run("slide.new", json!({"layout":"titleAndContent","title":"Second","body":"one\ntwo"})).unwrap();
+    app.run("slide.notes", json!({"text":"say hello"})).unwrap();
+    (app, egui::Context::default())
+}
+
+#[test]
+fn ai_methods_are_registered() {
+    assert_eq!(c0_host::ai_methods(), ["c0.selection", "c0.place"]);
+    assert_eq!(c0_host::MAX_PICTURE_BYTES, 40 * 1024 * 1024);
+}
+
+#[test]
+fn selection_reads_slide_outline_notes_and_selected_text() {
+    let (mut app, ctx) = deck();
+    let s = call(&mut app, &ctx, "c0.selection", json!({}));
+    assert_eq!(s["kind"], "slide");
+    assert_eq!(s["slideIndex"], 1);
+    assert_eq!(s["slideCount"], 2);
+    assert_eq!(s["title"], "Second");
+    assert_eq!(s["bodyText"], "one\ntwo");
+    assert_eq!(s["notes"], "say hello");
+    assert_eq!(s["outline"][1], json!({"index":1,"title":"Second"}));
+    assert!(s.get("selectedText").is_none());
+    // A selected text box gives its whole text; a selected range gives just the range.
+    let id = app.session.active().unwrap().doc.slides[1].shapes.iter().find(|x| x.ph_type().is_some_and(|k| k.is_title())).unwrap().id;
+    app.run("text.edit", json!({"id": id})).unwrap();
+    app.run("text.selectAll", json!({})).unwrap();
+    assert_eq!(call(&mut app, &ctx, "c0.selection", json!({}))["selectedText"], "Second");
+    app.run("text.edit", json!({"id": id, "at": [0, 1]})).unwrap();
+    app.run("text.move", json!({"to": "right", "extend": true})).unwrap();
+    assert_eq!(call(&mut app, &ctx, "c0.selection", json!({}))["selectedText"], "e");
+    let mut empty = SlideApp::new(Session::new(), Services::default());
+    assert_eq!(reply(&mut empty, &ctx, "c0.selection", json!({}))["ok"], false);
+}
+
+#[test]
+fn place_slides_is_one_undo_step_after_the_current_slide() {
+    let (mut app, ctx) = deck();
+    app.run("slide.go", json!({"index": 0})).unwrap();
+    let (before, steps) = (app.session.active().unwrap().doc.slides.len(), undo_len(&app));
+    let r = call(&mut app, &ctx, "c0.place", json!({"slides":[{"title":"A","bullets":["a1","a2"],"notes":"na"},{"title":"B","bullets":[]}]}));
+    assert_eq!(r["placed"], "slides");
+    assert_eq!(r["indices"], json!([1, 2]));
+    let st = app.session.active().unwrap();
+    assert_eq!(st.doc.slides.len(), before + 2);
+    assert_eq!(st.doc.slides[1].title(), "A");
+    assert_eq!(st.doc.slides[2].title(), "B");
+    assert_eq!(st.doc.slides[3].title(), "Second");
+    assert_eq!(st.doc.slides[1].notes_text(), "na");
+    assert!(st.is_dirty());
+    assert_eq!(undo_len(&app), steps + 1);
+    app.run("edit.undo", json!({})).unwrap();
+    let st = app.session.active().unwrap();
+    assert_eq!(st.doc.slides.len(), before);
+    assert_eq!(st.doc.slides[1].title(), "Second");
+    // `after` picks the place.
+    call(&mut app, &ctx, "c0.place", json!({"slides":[{"title":"Last","bullets":["x"]}],"after":1}));
+    assert_eq!(app.session.active().unwrap().doc.slides[2].title(), "Last");
+}
+
+#[test]
+fn place_replaces_selected_text_and_sets_notes_each_as_one_step() {
+    let (mut app, ctx) = deck();
+    let id = app.session.active().unwrap().doc.slides[1].shapes.iter().find(|x| x.ph_type().is_some_and(|k| k.is_title())).unwrap().id;
+    app.run("text.edit", json!({"id": id})).unwrap();
+    app.run("text.selectAll", json!({})).unwrap();
+    let steps = undo_len(&app);
+    call(&mut app, &ctx, "c0.place", json!({"text":"Better title","mode":"replace-selection"}));
+    assert_eq!(app.session.active().unwrap().doc.slides[1].title(), "Better title");
+    assert_eq!(undo_len(&app), steps + 1);
+    app.run("edit.undo", json!({})).unwrap();
+    assert_eq!(app.session.active().unwrap().doc.slides[1].title(), "Second");
+    // A selected text box (no range) is replaced whole.
+    app.run("text.exit", json!({})).unwrap();
+    app.run("shape.select", json!({"ids":[id]})).ok();
+    app.session.select(|_, sel| {
+        sel.text = None;
+        sel.shapes = vec![id];
+    })
+    .unwrap();
+    call(&mut app, &ctx, "c0.place", json!({"text":"Whole","mode":"replace-selection"}));
+    assert_eq!(app.session.active().unwrap().doc.slides[1].title(), "Whole");
+    // Notes.
+    let steps = undo_len(&app);
+    let r = call(&mut app, &ctx, "c0.place", json!({"notes":"new notes","slideIndex":0}));
+    assert_eq!(r["slideIndex"], 0);
+    assert_eq!(app.session.active().unwrap().doc.slides[0].notes_text(), "new notes");
+    assert_eq!(undo_len(&app), steps + 1);
+    app.run("edit.undo", json!({})).unwrap();
+    assert_eq!(app.session.active().unwrap().doc.slides[0].notes_text(), "");
+}
+
+#[test]
+fn place_picture_is_centred_fitted_and_one_undo_step() {
+    let (mut app, ctx) = deck();
+    let (shapes, steps) = (app.session.active().unwrap().current_slide().unwrap().shapes.len(), undo_len(&app));
+    let r = call(&mut app, &ctx, "c0.place", json!({"png": PNG_1X1, "name": "AI image"}));
+    assert_eq!(r["placed"], "picture");
+    let st = app.session.active().unwrap();
+    assert_eq!(st.current_slide().unwrap().shapes.len(), shapes + 1);
+    let size = st.doc.slide_size;
+    let (x, y, w, h) = (r["rect"]["x"].as_f64().unwrap(), r["rect"]["y"].as_f64().unwrap(), r["rect"]["width"].as_f64().unwrap(), r["rect"]["height"].as_f64().unwrap());
+    assert!(w <= size.width + 0.01 && h <= size.height + 0.01 && x >= -0.01 && y >= -0.01);
+    assert!((x + w / 2.0 - size.width / 2.0).abs() < 0.01 && (y + h / 2.0 - size.height / 2.0).abs() < 0.01);
+    assert!(st.is_dirty());
+    assert_eq!(undo_len(&app), steps + 1);
+    app.run("edit.undo", json!({})).unwrap();
+    assert_eq!(app.session.active().unwrap().current_slide().unwrap().shapes.len(), shapes);
+    let r = call(&mut app, &ctx, "c0.place", json!({"jpeg": JPEG_1X1, "name": "photo.jpg"}));
+    assert_eq!(r["placed"], "picture");
+}
+
+#[test]
+fn place_rejects_bad_params_with_plain_messages_and_changes_nothing() {
+    let (mut app, ctx) = deck();
+    let (revision_steps, slides) = (undo_len(&app), app.session.active().unwrap().doc.slides.len());
+    let huge = "A".repeat(60 * 1024 * 1024);
+    for params in [
+        json!({}),
+        json!({"slides": []}),
+        json!({"slides": "x"}),
+        json!({"slides": [{"bullets": []}]}),
+        json!({"slides": [{"title": "t", "bullets": [1]}]}),
+        json!({"slides": [{"title": "t"}], "after": 99}),
+        json!({"slides": [{"title": "t"}], "text": "x", "mode": "replace-selection"}),
+        json!({"text": "x"}),
+        json!({"text": "x", "mode": "replace-selection"}),
+        json!({"text": "", "mode": "replace-selection"}),
+        json!({"notes": 4}),
+        json!({"notes": "n", "slideIndex": 9}),
+        json!({"png": "!!!", "name": "a"}),
+        json!({"png": PNG_1X1}),
+        json!({"png": PNG_1X1, "name": "../x"}),
+        json!({"jpeg": PNG_1X1, "name": "a"}),
+        json!({"png": huge, "name": "a"}),
+    ] {
+        let r = reply(&mut app, &ctx, "c0.place", params.clone());
+        assert_eq!(r["ok"], false, "{params:.80}");
+        assert!(r["error"].as_str().is_some_and(|e| !e.is_empty()), "{r:.200}");
+    }
+    assert_eq!(undo_len(&app), revision_steps);
+    assert_eq!(app.session.active().unwrap().doc.slides.len(), slides);
+    let mut empty = SlideApp::new(Session::new(), Services::default());
+    assert_eq!(reply(&mut empty, &ctx, "c0.place", json!({"notes":"x"}))["ok"], false);
+}
+
+#[test]
+fn a_refused_placement_changes_nothing() {
+    let (mut app, ctx) = deck();
+    let (steps, before) = (undo_len(&app), app.session.active().unwrap().doc.clone());
+    // A bad second slide is refused before the first is added.
+    let r = reply(&mut app, &ctx, "c0.place", json!({"slides":[{"title":"ok"},{"title":"bad","notes":5}]}));
+    assert_eq!(r["ok"], false);
+    assert_eq!(undo_len(&app), steps);
+    assert!(std::sync::Arc::ptr_eq(&app.session.active().unwrap().doc, &before));
+}

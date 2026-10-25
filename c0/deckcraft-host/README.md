@@ -72,6 +72,8 @@ Names are case-sensitive. Slide indices are zero-based; numeric ids are stable w
 | `c0.cancelFileDialog` | `{}` | `{cancelled:boolean}`; retires the picker and outstanding application file tickets |
 | `c0.show` | `{action:"start"\|"end",from?:index}` | `{showing:boolean}`; page-local reading show with no presenter window; default start follows the existing show settings |
 | `c0.set` | `{themeTokens?,panels?}` | `{applied:[key],unknown:[key],invalid:[key]}` |
+| `c0.selection` | `{}` | `{kind:"slide",slideIndex,slideCount,title,bodyText,notes,selectedText?,outline:[{index,title}]}`; `selectedText` only when a text range or one text box is selected. Error when no deck or no slides |
+| `c0.place` | exactly one of `{slides:[{title,bullets:[string],notes?}],after?:index}`, `{text,mode:"replace-selection"}`, `{notes,slideIndex?}`, `{png\|jpeg:base64,name}` | `{placed:"slides",count,indices}`, `{placed:"text",characters}`, `{placed:"notes",slideIndex}`, `{placed:"picture",id,slideIndex,rect:{x,y,width,height}}` (points); one undo step, deck dirty; errors are plain text, nothing changes; pictures over 40 MB refused |
 
 `title` is `DocState::title()`. `dirty` and `revision` come directly from `DocState`. Each slide is
 `{index,id,title,hidden,section?}`, with the section name present when assigned. Each section is

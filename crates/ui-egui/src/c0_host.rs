@@ -1,10 +1,12 @@
 //! C0deck's transport-independent host contract. Host state is never persisted in a deck.
 
+mod ai;
 mod chrome;
 #[cfg(target_arch = "wasm32")]
 mod drops;
 mod files;
 pub use files::validate_name;
+pub use ai::{MAX_PICTURE_BYTES, methods as ai_methods};
 mod settings;
 mod tools;
 #[cfg(target_arch = "wasm32")]
@@ -65,6 +67,8 @@ pub fn handle(app: &mut SlideApp, ctx: &egui::Context, method: &str, params: &Va
         }
         "c0.show" => show(app, params),
         "c0.set" => settings::set(app, ctx, params),
+        "c0.selection" => ai::selection(app),
+        "c0.place" => ai::place(app, params),
         _ => Err(format!("unknown method `{method}`")),
     }
 }
