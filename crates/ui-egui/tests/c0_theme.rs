@@ -23,11 +23,12 @@ fn theme_overrides_survive_light_dark_and_clear_to_current_palette() {
 }
 
 #[test]
-fn all_twenty_three_colour_fields_are_registered() {
+fn every_colour_field_is_registered() {
     let ctx = egui::Context::default();
     let source = include_str!("../src/theme.rs");
     let fields: Vec<_> = source.lines().filter_map(|s| s.trim().strip_prefix("pub ").and_then(|s| s.strip_suffix(": Color32,"))).collect();
-    assert_eq!(fields.len(), 23);
+    // An upstream field addition fails here until host.rs registers it (27 on 2026-10-25).
+    assert_eq!(fields.len(), 27);
     for key in fields {
         let report = theme::host::set(&ctx, &json!({key:"#123456"})).unwrap();
         assert_eq!(report.applied, [key]);

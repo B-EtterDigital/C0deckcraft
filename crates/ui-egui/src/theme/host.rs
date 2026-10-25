@@ -86,6 +86,10 @@ fn assign(t: &mut Tokens, key: &str, color: Color32) -> bool {
         caret,
         text_selection,
         field_bg,
-        shadow
+        shadow,
+        text_field,
+        control,
+        control_hover,
+        control_pressed
     )
 }
