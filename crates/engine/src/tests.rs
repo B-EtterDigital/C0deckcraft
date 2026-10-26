@@ -237,6 +237,61 @@ fn pasted_shapes_get_the_next_automatic_name() {
     assert_eq!(names(&s).last().unwrap(), "Hero");
 }
 
+/// PowerPoint 16.0 (Windows): on "Rectangle 1, Oval 2, TextBox 3, Hero" Duplicate gives
+/// "Rectangle 5" and then "Rectangle 6", "TextBox 7"; the copy of "Hero" (and of its copy) is
+/// "Hero". Never "Hero copy".
+#[test]
+fn duplicate_gives_the_next_automatic_name_and_keeps_a_chosen_one() {
+    let mut s = session();
+    let names = |s: &Session| s.doc().unwrap().current_slide().unwrap().shapes.iter().map(|x| x.name.clone()).collect::<Vec<_>>();
+    let add = |s: &mut Session, cmd: &str, p: serde_json::Value| {
+        s.execute(cmd, &p).unwrap();
+        s.doc().unwrap().selection.shapes[0].0
+    };
+    let rect = add(&mut s, "shape.insert", json!({"preset": "rect", "rect": [10, 10, 50, 50]}));
+    let tb = add(&mut s, "shape.insert", json!({"preset": "rect", "rect": [100, 10, 50, 50]}));
+    s.execute("shape.rename", &json!({"id": tb, "name": "Hero"})).unwrap();
+    let n = names(&s).len();
+    let auto = names(&s)[n - 2].clone();
+    let (base, _) = auto.rsplit_once(' ').unwrap();
+
+    s.execute("edit.duplicate", &json!({"ids": [rect]})).unwrap();
+    s.execute("edit.duplicate", &json!({"ids": [rect]})).unwrap();
+    let all = names(&s);
+    assert_eq!(all[n], format!("{base} {}", n + 1), "{all:?}");
+    assert_eq!(all[n + 1], format!("{base} {}", n + 2), "{all:?}");
+
+    s.execute("edit.duplicate", &json!({"ids": [tb]})).unwrap();
+    let copy = s.doc().unwrap().selection.shapes[0].0;
+    s.execute("edit.duplicate", &json!({"ids": [copy]})).unwrap();
+    let all = names(&s);
+    assert_eq!(&all[n + 2..], ["Hero", "Hero"], "{all:?}");
+}
+
+#[test]
+fn duplicating_a_group_renames_its_automatic_children() {
+    let mut s = session();
+    let mut ids = vec![];
+    for x in [10, 100] {
+        s.execute("shape.insert", &json!({"preset": "rect", "rect": [x, 10, 50, 50]})).unwrap();
+        ids.push(s.doc().unwrap().selection.shapes[0].0);
+    }
+    s.execute("arrange.group", &json!({"ids": ids})).unwrap();
+    let group = s.doc().unwrap().selection.shapes[0].0;
+    s.execute("edit.duplicate", &json!({"ids": [group]})).unwrap();
+    let doc = s.doc().unwrap();
+    let shapes = &doc.current_slide().unwrap().shapes;
+    let (orig, copy) = (&shapes[shapes.len() - 2], &shapes[shapes.len() - 1]);
+    assert!(orig.is_group() && copy.is_group());
+    assert_ne!(orig.name, copy.name);
+    assert!(copy.name.starts_with("Group "), "{}", copy.name);
+    let all: Vec<_> = orig.children().iter().chain(copy.children()).map(|c| c.name.as_str()).collect();
+    let mut unique = all.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), all.len(), "{all:?}");
+}
+
 #[test]
 fn pasting_after_a_deleted_shape_does_not_repeat_a_name() {
     let mut s = session();
