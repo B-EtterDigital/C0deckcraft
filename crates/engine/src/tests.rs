@@ -268,6 +268,30 @@ fn duplicate_gives_the_next_automatic_name_and_keeps_a_chosen_one() {
     assert_eq!(&all[n + 2..], ["Hero", "Hero"], "{all:?}");
 }
 
+/// The next automatic name looks at the names inside groups too.
+#[test]
+fn duplicating_a_group_does_not_repeat_the_names_of_its_members() {
+    let mut s = session();
+    let mut ids = vec![];
+    for x in [10, 70, 130, 190] {
+        s.execute("shape.insert", &json!({"preset": "rect", "rect": [x, 10, 50, 50]})).unwrap();
+        ids.push(s.doc().unwrap().selection.shapes[0].0);
+    }
+    s.execute("arrange.group", &json!({"ids": [ids[2], ids[3]]})).unwrap();
+    let group = s.doc().unwrap().selection.shapes[0].0;
+    // Fewer top-level shapes than names in use: the next number is one a member already has.
+    s.execute("edit.delete", &json!({"ids": [ids[0], ids[1]]})).unwrap();
+    s.execute("edit.duplicate", &json!({"ids": [group]})).unwrap();
+    let doc = s.doc().unwrap();
+    let mut all = vec![];
+    deckcraft_model::walk(&doc.current_slide().unwrap().shapes, &mut |sh, _| all.push(sh.name.clone()));
+    let mut unique = all.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), all.len(), "{all:?}");
+}
+
+/// Group members are renamed like any other copied shape.
 #[test]
 fn duplicating_a_group_renames_its_automatic_children() {
     let mut s = session();

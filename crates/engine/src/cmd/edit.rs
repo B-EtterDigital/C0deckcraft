@@ -545,7 +545,11 @@ fn duplicate(s: &mut Session, p: &Value) -> Result<Value> {
             })
             .unwrap_or((off, off));
         reid("edit.duplicate", doc, &mut copies)?;
-        let mut taken = super::current_names(doc, sel);
+        // Every name on the slide, group members included, so a copy never repeats one.
+        let mut taken = std::collections::HashSet::new();
+        deckcraft_model::walk(&list, &mut |sh, _| {
+            taken.insert(sh.name.clone());
+        });
         walk_mut(&mut copies, &mut |c| rename_automatic(c, &mut taken));
         for (c, b) in copies.iter_mut().zip(boxes) {
             let mut x = b;
