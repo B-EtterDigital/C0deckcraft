@@ -14,7 +14,15 @@ fn theme_overrides_survive_light_dark_and_clear_to_current_palette() {
     assert_eq!(Tokens::get(&ctx).text, egui::Color32::from_rgba_unmultiplied(0xAA, 0xBB, 0xCC, 0xDD));
     let mut app = SlideApp::new(Session::new(), Services::default());
     app.run("view.dark", json!({"on":true})).unwrap();
-    ctx.run_ui(Default::default(), |ui| app.logic(ui.ctx())).textures_delta.clear();
+    // Since upstream's logic/ui split the restyle runs in a UI pass, after the fonts pass.
+    for _ in 0..3 {
+        ctx.run_ui(Default::default(), |ui| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        })
+        .textures_delta
+        .clear();
+    }
     assert!(Tokens::get(&ctx).dark);
     assert_eq!(Tokens::get(&ctx).accent, egui::Color32::from_rgb(0x12, 0x34, 0x56));
     theme::host::set(&ctx, &json!(null)).unwrap();
