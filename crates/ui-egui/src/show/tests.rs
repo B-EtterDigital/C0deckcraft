@@ -1001,7 +1001,14 @@ fn the_presenter_next_preview_arrives_without_blocking_the_frame() {
     let mut session = deckcraft_engine::Session::with_new();
     session.execute("slide.new", &json!({})).unwrap();
     let doc = session.active().unwrap().doc.clone();
-    let show = Show::new(&doc, 0, false, true);
+    // One frame on its own (a harness runs frames until the preview lands): it asks for the
+    // preview and returns without it.
+    let mut show = Show::new(&doc, 0, false, true);
+    let mut keep = true;
+    let ctx = egui::Context::default();
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| presenter_window(ui.ctx(), &mut show, &doc, 0.0, &mut keep));
+    assert!(show.next_job.is_some() && show.next_tex.is_none(), "the first frame leaves the preview pending");
+    assert_eq!(show.preview_spawns, 1);
     let mut harness = egui_kittest::Harness::builder().with_size(vec2(1100.0, 700.0)).build_ui_state(
         |ui, (doc, show, keep): &mut (std::sync::Arc<Presentation>, Show, bool)| {
             let now = ui.input(|i| i.time);
@@ -1009,8 +1016,6 @@ fn the_presenter_next_preview_arrives_without_blocking_the_frame() {
         },
         (doc, show, true),
     );
-    harness.step();
-    assert!(harness.state().1.next_job.is_some() || harness.state().1.next_tex.is_some());
     for _ in 0..200 {
         if harness.state().1.next_tex.is_some() {
             break;
@@ -1020,6 +1025,7 @@ fn the_presenter_next_preview_arrives_without_blocking_the_frame() {
     }
     assert_eq!(harness.state().1.next_tex.as_ref().map(|(_, n, _)| *n), Some(1));
     assert!(harness.state().1.next_job.is_none());
+    assert_eq!(harness.state().1.preview_spawns, 1, "the pending render landed; none started over");
 }
 
 /// #964: paging quickly keeps one preview render running, and the preview that lands is the
@@ -1060,6 +1066,19 @@ fn paging_quickly_renders_one_preview_at_a_time_and_lands_on_the_newest() {
     assert!(st.next_job.is_none());
     // A render starts only once the one before it has finished: never more than one per turn.
     assert!(st.preview_spawns <= turns + 1, "{} renders for {turns} turns", st.preview_spawns);
+
+    // While a render is pending, turning the page starts no other.
+    let (_tx, rx) = std::sync::mpsc::channel();
+    let doc = harness.state().0.clone();
+    let spawns = harness.state().1.preview_spawns;
+    harness.state_mut().1.next_tex = None;
+    harness.state_mut().1.next_job = Some((doc.clone(), 0, rx));
+    let a = harness.state_mut().1.state.prev(&doc);
+    harness.state_mut().1.apply(a, &doc, 0.0);
+    harness.step();
+    let st = &harness.state().1;
+    assert_eq!(st.preview_spawns, spawns, "no render starts while one is pending");
+    assert!(st.next_job.is_some());
 }
 
 /// A preview rendered from a presentation that has since been edited (replaced) is dropped,
