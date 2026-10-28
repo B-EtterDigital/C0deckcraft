@@ -160,11 +160,12 @@ impl Decoder {
     pub fn configure_hvcc(&mut self, hvcc: &[u8]) -> Result<()> {
         ensure!(hvcc.len() >= 23, "hvcC too short");
         ensure!(hvcc[0] == 1, "unsupported hvcC version {}", hvcc[0]);
-        self.nal_length_size = Some((hvcc[21] & 3) as usize + 1);
         let num_arrays = hvcc[22] as usize;
         let mut pos = 23;
+        let mut sets = Vec::new();
         for _ in 0..num_arrays {
             ensure!(pos + 3 <= hvcc.len(), "hvcC truncated");
+            let array_type = hvcc[pos] & 0x3f;
             let n = u16::from_be_bytes([hvcc[pos + 1], hvcc[pos + 2]]) as usize;
             pos += 3;
             for _ in 0..n {
@@ -172,10 +173,19 @@ impl Decoder {
                 let len = u16::from_be_bytes([hvcc[pos], hvcc[pos + 1]]) as usize;
                 pos += 2;
                 ensure!(pos + len <= hvcc.len(), "hvcC truncated");
-                self.handle_nal(&hvcc[pos..pos + len], 0)?;
+                sets.push((array_type, &hvcc[pos..pos + len]));
                 pos += len;
             }
         }
+        for (array_type, nal) in &sets {
+            let header = NalHeader::parse(nal)?;
+            ensure!([nal_type::VPS, nal_type::SPS, nal_type::PPS].contains(array_type), "hvcC array has non-parameter-set NAL type {array_type}");
+            ensure!(header.nal_type == *array_type, "hvcC array type {array_type} disagrees with NAL header type {}", header.nal_type);
+        }
+        for (_, nal) in sets {
+            self.handle_nal(nal, 0)?;
+        }
+        self.nal_length_size = Some((hvcc[21] & 3) as usize + 1);
         Ok(())
     }
 
@@ -649,5 +659,22 @@ fn make_picture(o: &Output) -> Picture {
         },
         sar: o.meta.sar,
         draft: o.meta.draft,
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::Decoder;
+
+    #[test]
+    fn hvcc_rejects_picture_slices_without_starting_a_picture() {
+        let mut config = vec![0; 23];
+        config[0] = 1;
+        config[22] = 1;
+        config.extend_from_slice(&[32, 0, 1, 0, 2, 0x02, 0x01]);
+        let mut decoder = Decoder::with_threads(1);
+        assert!(decoder.configure_hvcc(&config).is_err());
+        assert!(decoder.pending.is_none());
+        assert_eq!(decoder.stats().pictures, 0);
     }
 }

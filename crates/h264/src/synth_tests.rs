@@ -82,6 +82,20 @@ fn pps(cabac: bool, weighted: bool) -> Vec<u8> {
     nal(3, 8, &w.finish())
 }
 
+#[test]
+fn avcc_accepts_generated_sps_and_pps() {
+    let sps = sps(66, 4, false, PocType::T2);
+    let pps = pps(false, false);
+    let (sps, pps) = (&sps[4..], &pps[4..]);
+    let mut avcc = vec![1, 66, 0, 30, 0xff, 0xe1];
+    avcc.extend_from_slice(&(sps.len() as u16).to_be_bytes());
+    avcc.extend_from_slice(sps);
+    avcc.push(1);
+    avcc.extend_from_slice(&(pps.len() as u16).to_be_bytes());
+    avcc.extend_from_slice(pps);
+    assert!(Decoder::from_avcc(&avcc).is_ok());
+}
+
 #[derive(Default, Clone)]
 struct Pic {
     idr: bool,

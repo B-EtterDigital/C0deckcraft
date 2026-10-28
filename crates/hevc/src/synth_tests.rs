@@ -644,3 +644,18 @@ fn picture_store_is_checked_against_the_memory_budget() {
     assert!(!decodes_within(&stream, pictures * one - 1));
     assert!(decodes_within(&stream, deckcraft_bitstream::budget::DECODE_MEMORY_BUDGET));
 }
+
+#[test]
+fn hvcc_accepts_generated_vps_sps_and_pps() {
+    let sets = [vps(), sps(true), pps(0, &None, false)];
+    let mut hvcc = vec![0; 23];
+    hvcc[0] = 1;
+    hvcc[22] = sets.len() as u8;
+    for (kind, set) in [32, 33, 34].into_iter().zip(sets) {
+        let nal = &set[4..];
+        hvcc.extend_from_slice(&[kind, 0, 1]);
+        hvcc.extend_from_slice(&(nal.len() as u16).to_be_bytes());
+        hvcc.extend_from_slice(nal);
+    }
+    assert!(Decoder::from_hvcc(&hvcc).is_ok());
+}
