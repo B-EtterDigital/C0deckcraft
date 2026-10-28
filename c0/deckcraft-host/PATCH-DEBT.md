@@ -1,6 +1,7 @@
 # Patch debt: C0deck guest page
 
-Base: upstream `main` at `a31b990d32f2c8562f1588562f922960c3fde48b`. Count the **added**
+Base: upstream `main` at `55e5ee56b4b2c64973b78fda4182a78f9766fa62` (upstream pull 20261028; the
+previous base was `51eef99`, which measured the same 68 lines). Count the **added**
 column, not net changes. New files, including all host implementation/tests, do not enter this
 upstream-file ratchet. No existing asset or dependency source was changed.
 
@@ -10,7 +11,7 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `apps/deckcraft-web/src/main.rs` | 2 | Feature-gated page module, including native parser tests | K-41: native `cargo test` must compile | No |
 | `apps/deckcraft-web/src/web.rs` | 7 | Retain the WebRunner, attach the control queue, lend picker filters, bound page drop reads | Unpainted control passes and bounded browser files without a second app | No |
 | `crates/engine/Cargo.toml` | 4 | Forward codec defaults while permitting a disabled dependency | Preserve standalone defaults; disable codecs transitively | Proposed: packaging option |
-| `crates/engine/src/cmd/insert.rs` | 1 | Check the codec policy before insertion | Return a clear app error instead of embedding restricted new media | Proposed: packaging option |
+| `crates/engine/src/cmd/insert/picture.rs` | 1 | Check the codec policy in `media()` before insertion (moved here by the upstream split of `cmd/insert.rs`) | Return a clear app error instead of embedding restricted new media | Proposed: packaging option |
 | `crates/media/Cargo.toml` | 7 | Default-on `patent-codecs`, optional video decoder deps, optional symphonia AAC | Page graph excludes H.264/HEVC/AAC decoders | Proposed: packaging option |
 | `crates/media/src/audio.rs` | 1 | Policy at audio decode entry | Imported restricted streams also fail clearly | Proposed: packaging option |
 | `crates/media/src/lib.rs` | 1 | Register the policy module | Share one policy across probing, decoding and insertion | Proposed: packaging option |
@@ -18,19 +19,23 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `crates/media/src/probe.rs` | 1 | Policy at probe entry | Restricted formats are not advertised as playable | Proposed: packaging option |
 | `crates/media/src/video.rs` | 6 | Include unchanged adapters gated in their own file, gate match arms and decode policy | Exclude decoder references when disabled | Proposed: packaging option |
 | `crates/ui-egui/Cargo.toml` | 5 | Forward codec defaults; depend on opt-out-capable engine/media | Native behavior unchanged, web feature propagation | Proposed: packaging option |
-| `crates/ui-egui/src/backstage.rs` | 2 | Delegate Home/Account community links | Home and Account honor the host switch | No |
+| `crates/ui-egui/src/app.rs` | 5 | Host state initialisation in `SlideApp::new`, logic tick, title and bars draw seams; Backstage open/sync lifecycle (25 removed lines) moved to `c0_host/chrome.rs` | Keep host implementation in new files; host visibility guard before the existing lifecycle | No |
+| `crates/ui-egui/src/app/commands.rs` | 2 | Media preflight at the top of `run`; guard `app.links` on the community-links switch | Reject restricted playback; hidden links have no command | No |
+| `crates/ui-egui/src/backstage/files.rs` | 1 | Delegate the Home community link | Home honours the host switch | No |
+| `crates/ui-egui/src/backstage/info.rs` | 1 | Delegate the Account community links (two lines to one call) | Account honours the host switch | No |
 | `crates/ui-egui/src/control.rs` | 2 | One `c0.` dispatch arm; filter hidden `app.links` | Same control envelopes/queue | No |
-| `crates/ui-egui/src/credits.rs` | 2 | Render contributor names as plain labels when links are hidden | Covers both grab-bag and table GitHub links | No |
-| `crates/ui-egui/src/dialogs.rs` | 1 | About-link draw seam | Keep identity/credits/licence while removing links | No |
-| `crates/ui-egui/src/lib.rs` | 10 | Host state, lifecycle hook, title draw seam, one `c0_host::bars` call that draws ribbon, status bar and the folded dock strip, guarded app.links, media preflight; relocate Backstage lifecycle | Keep host implementation in new files; reject restricted playback | No |
+| `crates/ui-egui/src/dialogs/about.rs` | 1 | About-link draw seam (three links to one call) | Keep identity/credits/licence while removing links | No |
+| `crates/ui-egui/src/dialogs/credits.rs` | 2 | Render contributor names as plain labels when links are hidden | Covers both grab-bag and table GitHub links | No |
+| `crates/ui-egui/src/lib.rs` | 3 | `pub mod c0_host;` and the `chrome`/`host` fields on `SlideApp` | Host state lives in new files | No |
 | `crates/ui-egui/src/menus.rs` | 1 | Filter the palette through host policy | Hidden app.links has no palette entry | No |
-| `crates/ui-egui/src/ribbon.rs` | 2 | Gate File; delegate the existing Learn More group | No File/Backstage or promotional button when disabled | No |
+| `crates/ui-egui/src/panels/thumbs.rs` | 1 | Consume host navigation scroll target | Selected slide is brought into the thumbnail viewport | Proposed: general navigation improvement |
+| `crates/ui-egui/src/ribbon.rs` | 1 | Gate the File tab on the host switch | No File/Backstage button when disabled | No |
+| `crates/ui-egui/src/ribbon/slide_show.rs` | 1 | Delegate the existing Learn More group (five lines to one call) | No promotional button when disabled | No |
 | `crates/ui-egui/src/theme.rs` | 3 | Register overrides, one-line Tokens::get resolver, resolve widget styles on brightness changes | Runtime palette survives light/dark | Proposed: generic context-local palettes |
-| `crates/ui-egui/src/thumbs.rs` | 1 | Consume host navigation scroll target | Selected slide is brought into the thumbnail viewport | Proposed: general navigation improvement |
 
 Total: 68 added lines in modified upstream files.
 
-Ratchet: 69
+Ratchet: 68
 
 “Proposed” and “Yes” identify changes suitable/intended for upstream. This executor opens no PR,
 sends no upstream messages and pushes nothing. The controller owns any actual submission.
@@ -54,7 +59,8 @@ The existing H.264/HEVC adapters are relocated unchanged from `video.rs` to
 `crates/media/src/c0_patent_codecs.rs`, included after `plane_pic!` with feature gates beside the
 adapters in that new file. Upstream Backstage opening/sync
 methods are relocated to `c0_host/chrome.rs`, with the host visibility guard before their existing
-lifecycle. About links and the Learn More group are also drawn through that file. These moves
+lifecycle; the upstream copies in `app.rs` are deleted by the relocation. About links and the Learn
+More group are also drawn through that file. These moves
 are intentional, visible deletions in the upstream diff, not independent replacement implementations.
 
 Native regression tests are exclusively new `crates/*/tests/c0_*.rs` files. No sibling app code
@@ -65,7 +71,7 @@ was copied; GridCraft and WordCraft were read for transport/contract patterns on
 - `c0_host/tools.rs` mirrors `ribbon::show`'s reserved height (`28 + 4` collapsed, else `RIBBON_H + 20`)
   and draws the unchanged `ribbon::show` inside a scaled/movable layer; `ribbon_collapsed` is forced
   on for the call when `toolbar` is off. The folded dock hides the task pane by taking `ui.pane`
-  and restoring it on unfold. Recheck all three if `ribbon.rs` layout or `panes.rs` change.
+  and restoring it on unfold. Recheck all three if `ribbon/` layout or `panels/` (formerly `panes.rs`) change.
 
 - `SlideApp::logic` must drain the ordinary control queue inside `WebRunner`'s unpainted logic
   pass. The bridge listener and `AppRunner::logic` API are eframe-version-sensitive. Maintain
