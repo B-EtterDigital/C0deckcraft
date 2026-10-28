@@ -31,8 +31,10 @@ pub(crate) fn format_run(s: &mut Session, f: &(dyn Fn(&mut RunProps) + Send + Sy
         return Err(bad("format", SELECT_TEXT_OR_SHAPE));
     }
     let cells = st.selection.cells;
+    let on_master = editing_master(st);
     edit_shapes(s, &json!({"ids": ids}), "format", |sh| {
         let id = sh.id;
+        let inherited = on_master && sh.ph.is_some();
         match &mut sh.kind {
             ShapeKind::Table(t) => {
                 // Only the selected cells, when a range of them is selected.
@@ -48,6 +50,13 @@ pub(crate) fn format_run(s: &mut Session, f: &(dyn Fn(&mut RunProps) + Send + Sy
             _ => {
                 let body = sh.text.get_or_insert_with(TextBody::default);
                 ed::format_all(body, f);
+                if inherited {
+                    for l in 0..LIST_LEVELS {
+                        let mut lvl = body.list_style.level(l).cloned().unwrap_or_default();
+                        f(&mut lvl.run);
+                        body.list_style.set(l, lvl);
+                    }
+                }
             }
         }
         Ok(())
@@ -56,6 +65,15 @@ pub(crate) fn format_run(s: &mut Session, f: &(dyn Fn(&mut RunProps) + Send + Sy
         fit_text_box(s, id)?;
     }
     ok()
+}
+
+/// List-style levels (`lvl1pPr`–`lvl9pPr`) a placeholder passes on to the slides that use it.
+const LIST_LEVELS: u8 = 9;
+
+/// Formatting a placeholder on a layout or master (Slide Master view) also sets its list style,
+/// which is what the placeholders on slides inherit; its own runs may be few or none.
+fn editing_master(st: &DocState) -> bool {
+    matches!(st.selection.target, crate::Target::Layout { .. } | crate::Target::Master { .. })
 }
 
 /// What `format_run` formats while editing: the selection, or for a bare caret the word it's in
@@ -128,8 +146,10 @@ pub(crate) fn format_para(s: &mut Session, f: &(dyn Fn(&mut deckcraft_model::tex
         return Err(bad("format", SELECT_TEXT_OR_SHAPE));
     }
     let cells = st.selection.cells;
+    let on_master = editing_master(st);
     edit_shapes(s, &json!({"ids": ids}), "format", |sh| {
         let id = sh.id;
+        let inherited = on_master && sh.ph.is_some();
         match &mut sh.kind {
             ShapeKind::Table(t) => {
                 let range = crate::cmd::table::selected_range(cells, id, t);
@@ -147,6 +167,18 @@ pub(crate) fn format_para(s: &mut Session, f: &(dyn Fn(&mut deckcraft_model::tex
                     body.paragraphs.push(Default::default());
                 }
                 body.paragraphs.iter_mut().for_each(f);
+                if inherited {
+                    for l in 0..LIST_LEVELS {
+                        let mut lvl = body.list_style.level(l).cloned().unwrap_or_default();
+                        let mut p = deckcraft_model::text::Paragraph { level: l, props: lvl.para, ..Default::default() };
+                        f(&mut p);
+                        // A level change (indent/outdent) means nothing for a list-style level.
+                        if p.level == l {
+                            lvl.para = p.props;
+                            body.list_style.set(l, lvl);
+                        }
+                    }
+                }
             }
         }
         Ok(())

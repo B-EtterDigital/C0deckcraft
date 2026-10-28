@@ -5956,3 +5956,29 @@ fn invalid_slide_index_never_falls_back_to_the_selection_in_export_commands() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn master_layout_placeholder_format_inherits() {
+    let mut s = Session::new();
+    sample::open_sample(&mut s).unwrap();
+    let title_of = |shapes: &[model::Shape]| shapes.iter().find(|sh| sh.ph.as_ref().is_some_and(|p| p.kind.is_title())).map(|sh| sh.id.0).unwrap();
+    let existing = title_of(&s.doc().unwrap().doc.slides[0].shapes);
+    s.execute("view.slideMaster", &json!({"master": 0, "layout": 0})).unwrap();
+    let layout_title = title_of(&s.doc().unwrap().doc.masters[0].layouts[0].shapes);
+    s.execute("edit.select", &json!({"ids": [layout_title]})).unwrap();
+    s.execute("format.font", &json!({"family": "Montserrat"})).unwrap();
+    s.execute("format.align", &json!({"align": "right"})).unwrap();
+    let st = s.execute("format.state", &json!({})).unwrap();
+    assert_eq!(st["fontRef"], "Montserrat", "layout placeholder: {st}");
+    s.execute("view.closeMaster", &json!({})).unwrap();
+    s.execute("slide.new", &json!({"layout": "title"})).unwrap();
+    let slide = s.doc().unwrap().selection.slide;
+    let fresh = title_of(&s.doc().unwrap().doc.slides[slide].shapes);
+    for (index, id) in [(slide, fresh), (0, existing)] {
+        s.execute("slide.go", &json!({"index": index})).unwrap();
+        s.execute("edit.select", &json!({"ids": [id]})).unwrap();
+        let st = s.execute("format.state", &json!({})).unwrap();
+        assert_eq!(st["fontRef"], "Montserrat", "slide placeholder {id}: {st}");
+        assert_eq!(st["align"], "r", "slide placeholder {id}: {st}");
+    }
+}
