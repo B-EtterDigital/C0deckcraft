@@ -618,10 +618,19 @@ fn print_previews_pages_and_prints_a_pdf() {
     h.run_steps(2);
     let url = h.state().pending_urls.first().cloned().unwrap_or_default();
     // The URL was handed to egui at the end of the frame; check what it pointed at.
-    let printed = std::env::temp_dir().join(format!("{} (print).pdf", h.state().session.active().unwrap().title()));
-    assert!(printed.is_file(), "the PDF to print was written: {url}");
+    assert!(url.contains("deckcraft-print-"), "print preview uses its private directory: {url}");
+    let title = h.state().session.active().unwrap().title();
+    let safe: String = title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
+    let file_name = format!("{safe} (print).pdf");
+    let printed = std::fs::read_dir(std::env::temp_dir())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("deckcraft-print-"))
+        .map(|entry| entry.path().join(&file_name))
+        .find(|path| path.is_file())
+        .expect("the PDF to print was written in its private directory");
     assert!(std::fs::read(&printed).unwrap().starts_with(b"%PDF"));
-    let _ = std::fs::remove_file(printed);
+    let _ = std::fs::remove_dir_all(printed.parent().unwrap());
     let _ = std::fs::remove_dir_all(&dir);
 }
 

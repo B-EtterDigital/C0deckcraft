@@ -13,7 +13,7 @@ use super::{
 mod clipboard;
 mod commands;
 mod control;
-mod files;
+pub(crate) mod files;
 mod frame;
 mod ime;
 mod input;
@@ -77,6 +77,7 @@ impl SlideApp {
             integrated_titlebar: false,
             backstage: None,
             pending_urls: vec![],
+            print_previews: files::PrintPreviews::default(),
             #[cfg(not(target_arch = "wasm32"))]
             updates_rt: updates_ui::Runtime::default(),
             pending_copy: None,
