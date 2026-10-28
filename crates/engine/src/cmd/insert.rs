@@ -172,9 +172,10 @@ pub(crate) fn auto_name_base(shape: &Shape) -> String {
 }
 
 /// "{base} n" with the first `n` from the shape count + 1 that no shape on the slide already uses,
-/// so a gap left by a deleted shape never makes a second shape with the same name.
-pub(crate) fn first_free_name(base: &str, taken: &std::collections::HashSet<String>) -> String {
-    (taken.len() + 1..).map(|n| format!("{base} {n}")).find(|c| !taken.contains(c)).unwrap_or_default()
+/// so a gap left by a deleted shape never makes a second shape with the same name. `count` is the
+/// number of shapes, which exceeds the number of names when two shapes share one.
+pub(crate) fn first_free_name(base: &str, taken: &std::collections::HashSet<String>, count: usize) -> String {
+    (count + 1..).map(|n| format!("{base} {n}")).find(|c| !taken.contains(c)).unwrap_or_default()
 }
 
 pub(crate) fn add_shape(s: &mut Session, cmd: &str, mut shape: Shape, select: bool) -> Result<ShapeId> {
@@ -183,7 +184,7 @@ pub(crate) fn add_shape(s: &mut Session, cmd: &str, mut shape: Shape, select: bo
         if shape.name.is_empty() {
             let base = auto_name_base(&shape);
             let taken = super::current_names(doc, sel);
-            shape.name = first_free_name(&base, &taken);
+            shape.name = first_free_name(&base, &taken, taken.len());
         }
         let id = shape.id;
         let list = crate::shapes_mut(doc, sel).ok_or_else(|| bad("insert", "no slide"))?;

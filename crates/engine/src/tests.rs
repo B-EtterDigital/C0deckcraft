@@ -268,6 +268,26 @@ fn duplicate_gives_the_next_automatic_name_and_keeps_a_chosen_one() {
     assert_eq!(&all[n + 2..], ["Hero", "Hero"], "{all:?}");
 }
 
+/// Two shapes sharing a chosen name are still two shapes: the next number follows the count.
+#[test]
+fn duplicate_numbers_from_the_shape_count_when_names_repeat() {
+    let mut s = session();
+    s.execute("shape.insert", &json!({"preset": "rect", "rect": [10, 10, 50, 50]})).unwrap();
+    let rect = s.doc().unwrap().selection.shapes[0].0;
+    s.execute("shape.insert", &json!({"preset": "rect", "rect": [100, 10, 50, 50]})).unwrap();
+    let hero = s.doc().unwrap().selection.shapes[0].0;
+    s.execute("shape.rename", &json!({"id": hero, "name": "Hero"})).unwrap();
+    s.execute("edit.duplicate", &json!({"ids": [hero]})).unwrap();
+    let before = s.doc().unwrap().current_slide().unwrap().shapes.len();
+    s.execute("edit.duplicate", &json!({"ids": [rect]})).unwrap();
+    let doc = s.doc().unwrap();
+    let shapes = &doc.current_slide().unwrap().shapes;
+    let source = shapes.iter().find(|x| x.id.0 == rect).unwrap();
+    let base = source.name.rsplit_once(' ').unwrap().0;
+    let names: Vec<_> = shapes.iter().map(|x| x.name.as_str()).collect();
+    assert_eq!(shapes[before].name, format!("{base} {}", before + 1), "{names:?}");
+}
+
 /// The next automatic name looks at the names inside groups too.
 #[test]
 fn duplicating_a_group_does_not_repeat_the_names_of_its_members() {
