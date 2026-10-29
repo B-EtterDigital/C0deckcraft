@@ -394,7 +394,8 @@ impl Dictionary {
             return vec![];
         }
         let cap = word.chars().next().is_some_and(char::is_uppercase);
-        let lower = if cap && word.chars().skip(1).all(|c| !c.is_uppercase()) { word.to_lowercase() } else { word.to_string() };
+        let upper = word.chars().count() > 1 && word.chars().any(char::is_uppercase) && !word.chars().any(char::is_lowercase);
+        let lower = if upper || (cap && word.chars().skip(1).all(|c| !c.is_uppercase())) { word.to_lowercase() } else { word.to_string() };
         let w: Vec<char> = lower.chars().collect();
         let mut out: Vec<String> = vec![];
         let mut seen = HashSet::new();
@@ -443,7 +444,9 @@ impl Dictionary {
             push(format!("{} {}", s(&w[..i]), s(&w[i..])), &mut out);
         }
         out.truncate(n);
-        if cap {
+        if upper {
+            out = out.into_iter().map(|x| x.to_uppercase()).collect();
+        } else if cap {
             out = out.into_iter().map(|x| capitalise(&x)).collect();
         }
         out
@@ -841,6 +844,13 @@ SFX D Y 1\nSFX D 0 ed/S .\n";
         assert!(d.suggest("foto", 5).contains(&"photo".to_string()));
         assert!(d.suggest("Slidse", 5).contains(&"Slides".to_string()));
         assert!(d.suggest("workingslides", 5).contains(&"working slides".to_string()));
+    }
+
+    #[test]
+    fn all_caps_words_get_uppercase_suggestions() {
+        let d = d();
+        assert!(d.suggest("SLDE", 5).contains(&"SLIDE".to_string()));
+        assert!(d.suggest("FOTO", 5).contains(&"PHOTO".to_string()));
     }
 
     #[test]
