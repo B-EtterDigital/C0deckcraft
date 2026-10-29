@@ -264,19 +264,28 @@ fn accessibility(s: &mut Session, _p: &Value) -> Result<Value> {
                 _ => None,
             };
             if let Some(bg) = bg {
-                for sh in &sl.shapes {
-                    let Some(t) = &sh.text else { continue };
-                    let Some(para) = t.paragraphs.iter().find(|p| !p.is_empty()) else { continue };
-                    let rp = deckcraft_model::resolve::run(&ctx, sh, para, &para.runs.first().map(|r| r.props.clone()).unwrap_or_default());
+                deckcraft_model::walk(&sl.shapes, &mut |sh, _| {
+                    let Some(t) = &sh.text else { return };
                     let (fill, _) = deckcraft_model::resolve::fill(&ctx, sh);
                     if fill.as_ref().is_some_and(|f| !f.is_none()) {
-                        continue;
+                        return;
                     }
-                    let fg = deckcraft_model::resolve::text_color(&ctx, &rp);
-                    if fg.contrast(bg) < 3.0 {
-                        out.push(json!({"slide": i, "shape": sh.id, "name": sh.name, "issue": format!("Hard-to-read text contrast ({:.1}:1)", fg.contrast(bg))}));
+                    let low = t
+                        .paragraphs
+                        .iter()
+                        .flat_map(|para| {
+                            para.runs.iter().map(|run| {
+                                let rp = deckcraft_model::resolve::run(&ctx, sh, para, &run.props);
+                                deckcraft_model::resolve::text_color(&ctx, &rp).contrast(bg)
+                            })
+                        })
+                        .find(|contrast| *contrast < 3.0);
+                    if let Some(contrast) = low {
+                        out.push(
+                            json!({"slide": i, "shape": sh.id, "name": sh.name, "issue": format!("Hard-to-read text contrast ({contrast:.1}:1)")}),
+                        );
                     }
-                }
+                });
             }
         }
     }
@@ -858,5 +867,74 @@ mod spelling_change_range_tests {
         let id = r["id"].clone();
         let err = s.execute("review.spellingChange", &json!({"shape": id, "para": 0, "start": u64::MAX, "word": "Hello", "to": "x"})).unwrap_err();
         assert!(matches!(err, EngineError::BadParams { .. }), "{err:?}");
+    }
+}
+
+#[cfg(test)]
+mod accessibility_contrast_tests {
+    use super::*;
+    use deckcraft_model::text::{Paragraph, Run, RunProps};
+    use deckcraft_model::{ColorRef, Fill, Rgba, Shape, ShapeId, ShapeKind, TextBody};
+    use serde_json::json;
+
+    fn run(text: &str, color: Rgba) -> Run {
+        Run::with(text, RunProps { fill: Some(Fill::solid(ColorRef::rgb(color))), ..Default::default() })
+    }
+
+    fn text_shape(id: u32, name: &str, paragraphs: Vec<Paragraph>) -> Shape {
+        Shape { id: ShapeId(id), name: name.into(), text: Some(TextBody { paragraphs, ..Default::default() }), ..Default::default() }
+    }
+
+    #[test]
+    fn contrast_checks_mixed_runs_later_paragraphs_and_group_descendants_once() {
+        let mut s = Session::with_new();
+        s.edit(|doc, _| {
+            let black = Rgba::BLACK;
+            let white = Rgba::WHITE;
+            let mixed = Paragraph { runs: vec![run("visible", black), run("hidden", white)], ..Default::default() };
+            let later = vec![
+                Paragraph { runs: vec![run("visible", black)], ..Default::default() },
+                Paragraph { runs: vec![run("hidden", white)], ..Default::default() },
+            ];
+            let child = text_shape(5, "nested text", vec![Paragraph { runs: vec![run("hidden", white)], ..Default::default() }]);
+            let group = Shape {
+                id: ShapeId(4),
+                name: "group".into(),
+                descr: "group of text".into(),
+                kind: ShapeKind::Group {
+                    children: vec![Shape {
+                        id: ShapeId(7),
+                        name: "nested group".into(),
+                        descr: "nested group of text".into(),
+                        kind: ShapeKind::Group { children: vec![child], child: Default::default() },
+                        ..Default::default()
+                    }],
+                    child: Default::default(),
+                },
+                ..Default::default()
+            };
+            let sl = Arc::make_mut(doc.slides.get_mut(0).ok_or_else(|| bad("test", "no slide"))?);
+            sl.shapes = vec![
+                text_shape(2, "mixed", vec![mixed]),
+                text_shape(3, "later paragraph", later),
+                group,
+                text_shape(6, "black control", vec![Paragraph { runs: vec![run("visible", black)], ..Default::default() }]),
+            ];
+            Ok(())
+        })
+        .unwrap();
+
+        let issues = s.execute("review.accessibility", &json!({})).unwrap();
+        let contrasts: Vec<_> = issues
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|issue| issue["issue"].as_str().unwrap_or("").starts_with("Hard-to-read text contrast"))
+            .collect();
+        assert_eq!(contrasts.len(), 3, "{issues}");
+        for id in [2, 3, 5] {
+            assert!(contrasts.iter().any(|issue| issue["shape"] == id), "missing shape {id}: {issues}");
+        }
+        assert!(!contrasts.iter().any(|issue| issue["shape"] == 6), "black control warned: {issues}");
     }
 }
