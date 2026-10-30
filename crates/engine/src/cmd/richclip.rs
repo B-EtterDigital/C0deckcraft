@@ -42,28 +42,26 @@ pub fn body_to_html(body: &TextBody) -> String {
     out
 }
 
+/// The text without formatting, or "" (no HTML on the clipboard) when even that is too big: a
+/// cut-off prefix would paste as if it were the whole text.
 fn plain_html(body: &TextBody) -> String {
     let mut out = String::new();
     for (i, p) in body.paragraphs.iter().enumerate() {
         let prefix = if i > 0 { "<br><p>" } else { "<p>" };
         if !push_if_fits(&mut out, prefix, 4) {
-            break;
+            return String::new();
         }
-        let mut complete = true;
         for r in &p.runs {
-            if matches!(&r.kind, deckcraft_model::text::RunKind::Break) {
-                complete = push_if_fits(&mut out, "<br>", 4);
+            let fits = if matches!(&r.kind, deckcraft_model::text::RunKind::Break) {
+                push_if_fits(&mut out, "<br>", 4)
             } else {
-                complete = push_escaped_bounded(&mut out, &r.text, 4);
-            }
-            if !complete {
-                break;
+                push_escaped_bounded(&mut out, &r.text, 4)
+            };
+            if !fits {
+                return String::new();
             }
         }
         out.push_str("</p>");
-        if !complete {
-            break;
-        }
     }
     out
 }
@@ -496,18 +494,13 @@ mod tests {
     }
 
     #[test]
-    fn oversized_escaped_rich_text_falls_back_to_bounded_plain_html() {
+    fn oversized_escaped_rich_text_puts_no_html_on_the_clipboard() {
         let mut body = TextBody::from_text(&"&<🦀".repeat(100_000));
         body.paragraphs[0].runs[0].props.bold = Some(true);
         body.paragraphs.push(Paragraph::new("later paragraph"));
 
-        let html = body_to_html(&body);
-        assert!(html.len() <= MAX_HTML);
-        assert!(html.ends_with("</p>"));
-        let parsed = html_to_body(&html).expect("exported fallback must be valid HTML");
-        assert_eq!(parsed.paragraphs[0].runs[0].props.bold, None);
-        assert_eq!(parsed.paragraphs.len(), 1);
-        assert!(parsed.text().starts_with("&<🦀"));
+        // Neither the formatted nor the plain HTML fits, and a truncated prefix would lose text.
+        assert!(body_to_html(&body).is_empty());
     }
 
     #[test]
