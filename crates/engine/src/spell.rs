@@ -401,12 +401,18 @@ impl Dictionary {
             return vec![];
         }
         let cap = word.chars().next().is_some_and(char::is_uppercase);
-        let lower = if cap && word.chars().skip(1).all(|c| !c.is_uppercase()) { word.to_lowercase() } else { word.to_string() };
+        let upper = word.chars().count() > 1 && word.chars().any(char::is_uppercase) && !word.chars().any(char::is_lowercase);
+        let lower = if upper || (cap && word.chars().skip(1).all(|c| !c.is_uppercase())) { word.to_lowercase() } else { word.to_string() };
         let w: Vec<char> = lower.chars().collect();
         let mut out: Vec<String> = vec![];
         let mut seen = HashSet::new();
         let mut push = |s: String, out: &mut Vec<String>| {
-            if s != lower && seen.insert(s.to_lowercase()) && s.split(' ').all(|p| self.suggestible(p)) {
+            if s == lower {
+                return;
+            }
+            // Checked in capitals, so a KEEPCASE entry ("NASA") is offered for an all-caps word.
+            let s = if upper { s.to_uppercase() } else { s };
+            if seen.insert(s.to_lowercase()) && s.split(' ').all(|p| self.suggestible(p)) {
                 out.push(s);
             }
         };
@@ -450,7 +456,7 @@ impl Dictionary {
             push(format!("{} {}", s(&w[..i]), s(&w[i..])), &mut out);
         }
         out.truncate(n);
-        if cap {
+        if cap && !upper {
             out = out.into_iter().map(|x| capitalise(&x)).collect();
         }
         out
@@ -865,6 +871,14 @@ SFX D Y 1\nSFX D 0 ed/S .\n";
         // Unchecked, not seconds of compound splitting.
         assert!(d.check(&"footb".repeat(20_000)));
         assert!(d.check(&format!("{under}x")));
+    }
+
+    #[test]
+    fn all_caps_words_get_uppercase_suggestions() {
+        let d = d();
+        assert!(d.suggest("SLDE", 5).contains(&"SLIDE".to_string()));
+        assert!(d.suggest("FOTO", 5).contains(&"PHOTO".to_string()));
+        assert!(d.suggest("NSSA", 5).contains(&"NASA".to_string()));
     }
 
     #[test]
