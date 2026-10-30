@@ -274,10 +274,13 @@ fn accessibility(s: &mut Session, _p: &Value) -> Result<Value> {
                         .paragraphs
                         .iter()
                         .flat_map(|para| {
-                            para.runs.iter().map(|run| {
-                                let rp = deckcraft_model::resolve::run(&ctx, sh, para, &run.props);
-                                deckcraft_model::resolve::text_color(&ctx, &rp).contrast(bg)
-                            })
+                            // A line break or blank run shows no glyphs, so its colour can't be hard to read.
+                            para.runs.iter().filter(|run| run.kind != deckcraft_model::text::RunKind::Break && !run.text.trim().is_empty()).map(
+                                |run| {
+                                    let rp = deckcraft_model::resolve::run(&ctx, sh, para, &run.props);
+                                    deckcraft_model::resolve::text_color(&ctx, &rp).contrast(bg)
+                                },
+                            )
                         })
                         .find(|contrast| *contrast < 3.0);
                     if let Some(contrast) = low {
@@ -873,7 +876,7 @@ mod spelling_change_range_tests {
 #[cfg(test)]
 mod accessibility_contrast_tests {
     use super::*;
-    use deckcraft_model::text::{Paragraph, Run, RunProps};
+    use deckcraft_model::text::{Paragraph, Run, RunKind, RunProps};
     use deckcraft_model::{ColorRef, Fill, Rgba, Shape, ShapeId, ShapeKind, TextBody};
     use serde_json::json;
 
@@ -919,6 +922,14 @@ mod accessibility_contrast_tests {
                 text_shape(3, "later paragraph", later),
                 group,
                 text_shape(6, "black control", vec![Paragraph { runs: vec![run("visible", black)], ..Default::default() }]),
+                text_shape(
+                    8,
+                    "invisible white runs",
+                    vec![Paragraph {
+                        runs: vec![run("visible", black), Run { kind: RunKind::Break, ..run("\n", white) }, run("  ", white), run("visible", black)],
+                        ..Default::default()
+                    }],
+                ),
             ];
             Ok(())
         })
@@ -936,5 +947,6 @@ mod accessibility_contrast_tests {
             assert!(contrasts.iter().any(|issue| issue["shape"] == id), "missing shape {id}: {issues}");
         }
         assert!(!contrasts.iter().any(|issue| issue["shape"] == 6), "black control warned: {issues}");
+        assert!(!contrasts.iter().any(|issue| issue["shape"] == 8), "white break or spaces warned: {issues}");
     }
 }
