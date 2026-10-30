@@ -16,25 +16,93 @@ const MAX_RUNS: usize = 10_000;
 pub fn body_to_html(body: &TextBody) -> String {
     let mut out = String::new();
     for (i, p) in body.paragraphs.iter().enumerate() {
-        if i > 0 {
-            out.push_str("<br>");
+        let prefix = if i > 0 { "<br><p>" } else { "<p>" };
+        if !push_if_fits(&mut out, prefix, 4) {
+            return plain_html(body);
         }
-        out.push_str("<p>");
         for r in &p.runs {
             let (open, close) = tags(&r.props);
-            out.push_str(&open);
+            if !push_if_fits(&mut out, &open, close.len() + 4) {
+                return plain_html(body);
+            }
             match &r.kind {
-                deckcraft_model::text::RunKind::Break => out.push_str("<br>"),
-                _ => push_escaped(&mut out, &r.text),
+                deckcraft_model::text::RunKind::Break => {
+                    if !push_if_fits(&mut out, "<br>", close.len() + 4) {
+                        return plain_html(body);
+                    }
+                }
+                _ => {
+                    if !push_escaped_bounded(&mut out, &r.text, close.len() + 4) {
+                        return plain_html(body);
+                    }
+                }
             }
             out.push_str(&close);
-            if out.len() > MAX_HTML {
-                break;
+        }
+        out.push_str("</p>");
+    }
+    out
+}
+
+/// The text without formatting, or "" (no HTML on the clipboard) when even that is too big: a
+/// cut-off prefix would paste as if it were the whole text.
+fn plain_html(body: &TextBody) -> String {
+    let mut out = String::new();
+    for (i, p) in body.paragraphs.iter().enumerate() {
+        let prefix = if i > 0 { "<br><p>" } else { "<p>" };
+        if !push_if_fits(&mut out, prefix, 4) {
+            return String::new();
+        }
+        for r in &p.runs {
+            let fits = if matches!(&r.kind, deckcraft_model::text::RunKind::Break) {
+                push_if_fits(&mut out, "<br>", 4)
+            } else {
+                push_escaped_bounded(&mut out, &r.text, 4)
+            };
+            if !fits {
+                return String::new();
             }
         }
         out.push_str("</p>");
     }
     out
+}
+
+fn push_if_fits(out: &mut String, value: &str, reserve: usize) -> bool {
+    if out.len().checked_add(value.len()).and_then(|n| n.checked_add(reserve)).is_none_or(|n| n > MAX_HTML) {
+        return false;
+    }
+    out.push_str(value);
+    true
+}
+
+fn push_escaped_bounded(out: &mut String, text: &str, reserve: usize) -> bool {
+    for c in text.chars() {
+        match c {
+            '&' => {
+                if !push_if_fits(out, "&amp;", reserve) {
+                    return false;
+                }
+            }
+            '<' => {
+                if !push_if_fits(out, "&lt;", reserve) {
+                    return false;
+                }
+            }
+            '>' => {
+                if !push_if_fits(out, "&gt;", reserve) {
+                    return false;
+                }
+            }
+            _ => {
+                if out.len().checked_add(c.len_utf8()).and_then(|n| n.checked_add(reserve)).is_none_or(|n| n > MAX_HTML) {
+                    return false;
+                }
+                out.push(c);
+            }
+        }
+    }
+    true
 }
 
 fn tags(props: &RunProps) -> (String, String) {
@@ -53,17 +121,6 @@ fn tags(props: &RunProps) -> (String, String) {
         close.insert_str(0, "</u>");
     }
     (open, close)
-}
-
-fn push_escaped(out: &mut String, text: &str) {
-    for c in text.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            _ => out.push(c),
-        }
-    }
 }
 
 /// The formatted text of an HTML fragment, or `None` when it has no text.
@@ -472,6 +529,16 @@ mod tests {
         let last = back.paragraphs[0].runs.last().unwrap();
         assert_eq!(last.props.italic, Some(true));
         assert!(last.props.underline.is_some());
+    }
+
+    #[test]
+    fn oversized_escaped_rich_text_puts_no_html_on_the_clipboard() {
+        let mut body = TextBody::from_text(&"&<🦀".repeat(100_000));
+        body.paragraphs[0].runs[0].props.bold = Some(true);
+        body.paragraphs.push(Paragraph::new("later paragraph"));
+
+        // Neither the formatted nor the plain HTML fits, and a truncated prefix would lose text.
+        assert!(body_to_html(&body).is_empty());
     }
 
     #[test]
