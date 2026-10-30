@@ -311,6 +311,33 @@ fn duplicating_a_group_does_not_repeat_the_names_of_its_members() {
     assert_eq!(unique.len(), all.len(), "{all:?}");
 }
 
+/// A shape inserted or pasted after a group was duplicated takes none of its members' names.
+#[test]
+fn inserting_after_duplicating_a_group_does_not_repeat_a_member_name() {
+    let mut s = session();
+    let mut ids = vec![];
+    for x in [10, 70] {
+        s.execute("shape.insert", &json!({"preset": "rect", "rect": [x, 10, 50, 50]})).unwrap();
+        ids.push(s.doc().unwrap().selection.shapes[0].0);
+    }
+    s.execute("arrange.group", &json!({"ids": ids})).unwrap();
+    let group = s.doc().unwrap().selection.shapes[0].0;
+    s.execute("edit.duplicate", &json!({"ids": [group]})).unwrap();
+    // Fewer top-level shapes than shapes: counting only the top level reaches a member's number.
+    for x in [130, 190, 250] {
+        s.execute("shape.insert", &json!({"preset": "rect", "rect": [x, 10, 50, 50]})).unwrap();
+    }
+    s.execute("edit.copy", &json!({})).unwrap();
+    s.execute("edit.paste", &json!({})).unwrap();
+    let doc = s.doc().unwrap();
+    let mut all = vec![];
+    deckcraft_model::walk(&doc.current_slide().unwrap().shapes, &mut |sh, _| all.push(sh.name.clone()));
+    let mut unique = all.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), all.len(), "{all:?}");
+}
+
 /// Group members are renamed like any other copied shape.
 #[test]
 fn duplicating_a_group_renames_its_automatic_children() {

@@ -321,7 +321,7 @@ fn paste(s: &mut Session, p: &Value) -> Result<Value> {
             let mut shapes = clip.shapes.clone();
             reid("edit.paste", doc, &mut shapes)?;
             crate::media_refs::visit_mut::shapes(&mut shapes, &mut remap_media(&media));
-            let mut taken = super::current_names(doc, sel);
+            let (mut taken, mut count) = super::current_names(doc, sel);
             for sh in &mut shapes {
                 // Only a name already on the slide is changed (two shapes with one name are what the
                 // issue is about); otherwise it stays, as Morph pairs shapes across slides by name.
@@ -330,9 +330,12 @@ fn paste(s: &mut Session, p: &Value) -> Result<Value> {
                     && !n.is_empty()
                     && n.bytes().all(|b| b.is_ascii_digit())
                 {
-                    sh.name = super::insert::first_free_name(base, &taken, taken.len());
+                    sh.name = super::insert::first_free_name(base, &taken, count);
                 }
-                taken.insert(sh.name.clone());
+                deckcraft_model::walk(std::slice::from_ref(sh), &mut |m, _| {
+                    taken.insert(m.name.clone());
+                    count += 1;
+                });
                 if let Some(x) = sh.xfrm.as_mut() {
                     x.x += off;
                     x.y += off;

@@ -198,8 +198,8 @@ pub(crate) fn add_shape(s: &mut Session, cmd: &str, mut shape: Shape, select: bo
         shape.id = ShapeId(doc.alloc_id().ok_or_else(|| bad(cmd, NO_ID_SPACE))?);
         if shape.name.is_empty() {
             let base = auto_name_base(&shape);
-            let taken = super::current_names(doc, sel);
-            shape.name = first_free_name(&base, &taken, taken.len());
+            let (taken, count) = super::current_names(doc, sel);
+            shape.name = first_free_name(&base, &taken, count);
         }
         let id = shape.id;
         let list = crate::shapes_mut(doc, sel).ok_or_else(|| bad("insert", "no slide"))?;
