@@ -239,8 +239,7 @@ mod tests {
         let mut child = Shape { id: ShapeId(12), name: "Child".into(), ..Default::default() };
         child.click = Some(link(Action::NextSlide));
         child.hover = Some(link(Action::Url { url: "https://example.com/hover".into() }));
-        let mut run_props = RunProps::default();
-        run_props.link = Some(link(Action::Slide { slide: deckcraft_model::SlideId(7) }));
+        let run_props = RunProps { link: Some(link(Action::Slide { slide: deckcraft_model::SlideId(7) })), ..Default::default() };
         let mut paragraph = Paragraph::new("linked");
         paragraph.runs = vec![Run::with("linked", run_props)];
         child.text = Some(TextBody { paragraphs: vec![paragraph], ..Default::default() });
@@ -268,8 +267,7 @@ mod tests {
         assert_eq!(actions[2]["owner"]["runIndex"], 0);
         assert_eq!(actions[2]["target"], 7);
 
-        let mut cell_props = RunProps::default();
-        cell_props.hover = Some(link(Action::Url { url: "https://example.com/cell".into() }));
+        let cell_props = RunProps { hover: Some(link(Action::Url { url: "https://example.com/cell".into() })), ..Default::default() };
         let mut cell_text = TextBody::from_text("cell link");
         cell_text.paragraphs[0].runs = vec![Run::with("cell link", cell_props)];
         let table =
