@@ -400,7 +400,12 @@ impl Dictionary {
         let mut out: Vec<String> = vec![];
         let mut seen = HashSet::new();
         let mut push = |s: String, out: &mut Vec<String>| {
-            if s != lower && seen.insert(s.to_lowercase()) && s.split(' ').all(|p| self.suggestible(p)) {
+            if s == lower {
+                return;
+            }
+            // Checked in capitals, so a KEEPCASE entry ("NASA") is offered for an all-caps word.
+            let s = if upper { s.to_uppercase() } else { s };
+            if seen.insert(s.to_lowercase()) && s.split(' ').all(|p| self.suggestible(p)) {
                 out.push(s);
             }
         };
@@ -444,9 +449,7 @@ impl Dictionary {
             push(format!("{} {}", s(&w[..i]), s(&w[i..])), &mut out);
         }
         out.truncate(n);
-        if upper {
-            out = out.into_iter().map(|x| x.to_uppercase()).collect();
-        } else if cap {
+        if cap && !upper {
             out = out.into_iter().map(|x| capitalise(&x)).collect();
         }
         out
@@ -851,6 +854,7 @@ SFX D Y 1\nSFX D 0 ed/S .\n";
         let d = d();
         assert!(d.suggest("SLDE", 5).contains(&"SLIDE".to_string()));
         assert!(d.suggest("FOTO", 5).contains(&"PHOTO".to_string()));
+        assert!(d.suggest("NSSA", 5).contains(&"NASA".to_string()));
     }
 
     #[test]
