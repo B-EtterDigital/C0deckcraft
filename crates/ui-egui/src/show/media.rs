@@ -232,6 +232,42 @@ pub(super) fn shapes_under_pointer(ctx: &egui::Context, ui: &Ui, show: &mut Show
     Some(under)
 }
 
+impl Show {
+    /// Advance the clock of the running triggered animations.
+    pub(super) fn tick_triggers(&mut self, doc: &Presentation, now: f64) {
+        self.timeline(doc);
+        if let Some((_, tl)) = &self.timeline {
+            self.state.tick(tl, now);
+        }
+    }
+
+    /// A click on the slide: the shape under the pointer acts, or the background advances.
+    pub(super) fn click_slide(&mut self, doc: &Presentation, under: &Under, now: f64) -> Click {
+        self.timeline(doc);
+        let last = self.last_viewed;
+        match &self.timeline {
+            Some((_, tl)) => self.state.click(doc, tl, &under.shapes, &|id| under.visible(id), now, last),
+            None => Click::None,
+        }
+    }
+}
+
+/// A slide-space box on screen, the slide being drawn in `srect` at `k` pixels per point.
+pub(super) fn on_screen(srect: Rect, k: f32, x: &deckcraft_geom::Xfrm) -> Rect {
+    Rect::from_min_size(pos2(srect.min.x + x.x as f32 * k, srect.min.y + x.y as f32 * k), vec2(x.w as f32 * k, x.h as f32 * k))
+}
+
+/// The animated GIF whose play/pause button is under the pointer on the shown slide.
+pub(super) fn gif_hit(ctx: &egui::Context, ui: &Ui, show: &Show, doc_uid: u64, doc: &Presentation, app: &mut SlideApp) -> Option<ShapeId> {
+    let p = ctx.input(|i| i.pointer.interact_pos())?;
+    let full = ui.max_rect();
+    let avail = if show.reading { Rect::from_min_max(full.min, pos2(full.max.x, full.max.y - 34.0)) } else { full };
+    let srect = fit(avail, doc);
+    let k = srect.width() / doc.slide_size.width.max(1.0) as f32;
+    let gifs = app.media.gifs(doc_uid, doc, show.state.slide, ctx.input(|i| i.time), &app.session.gif_paused);
+    gifs.iter().rev().find(|g| crate::media::gif_button_rect(on_screen(srect, k, &g.rect)).contains(p)).map(|g| g.id)
+}
+
 #[cfg(test)]
 mod hit_tests {
     use super::*;
@@ -272,40 +308,4 @@ mod hit_tests {
         assert!(unchanged.is_some_and(|(x, y)| (10.0..=30.0).contains(&x) && (10.0..=30.0).contains(&y)));
         assert!(!displaced.is_some_and(|(x, y)| (10.0..=30.0).contains(&x) && (10.0..=30.0).contains(&y)));
     }
-}
-
-impl Show {
-    /// Advance the clock of the running triggered animations.
-    pub(super) fn tick_triggers(&mut self, doc: &Presentation, now: f64) {
-        self.timeline(doc);
-        if let Some((_, tl)) = &self.timeline {
-            self.state.tick(tl, now);
-        }
-    }
-
-    /// A click on the slide: the shape under the pointer acts, or the background advances.
-    pub(super) fn click_slide(&mut self, doc: &Presentation, under: &Under, now: f64) -> Click {
-        self.timeline(doc);
-        let last = self.last_viewed;
-        match &self.timeline {
-            Some((_, tl)) => self.state.click(doc, tl, &under.shapes, &|id| under.visible(id), now, last),
-            None => Click::None,
-        }
-    }
-}
-
-/// A slide-space box on screen, the slide being drawn in `srect` at `k` pixels per point.
-pub(super) fn on_screen(srect: Rect, k: f32, x: &deckcraft_geom::Xfrm) -> Rect {
-    Rect::from_min_size(pos2(srect.min.x + x.x as f32 * k, srect.min.y + x.y as f32 * k), vec2(x.w as f32 * k, x.h as f32 * k))
-}
-
-/// The animated GIF whose play/pause button is under the pointer on the shown slide.
-pub(super) fn gif_hit(ctx: &egui::Context, ui: &Ui, show: &Show, doc_uid: u64, doc: &Presentation, app: &mut SlideApp) -> Option<ShapeId> {
-    let p = ctx.input(|i| i.pointer.interact_pos())?;
-    let full = ui.max_rect();
-    let avail = if show.reading { Rect::from_min_max(full.min, pos2(full.max.x, full.max.y - 34.0)) } else { full };
-    let srect = fit(avail, doc);
-    let k = srect.width() / doc.slide_size.width.max(1.0) as f32;
-    let gifs = app.media.gifs(doc_uid, doc, show.state.slide, ctx.input(|i| i.time), &app.session.gif_paused);
-    gifs.iter().rev().find(|g| crate::media::gif_button_rect(on_screen(srect, k, &g.rect)).contains(p)).map(|g| g.id)
 }
