@@ -108,7 +108,7 @@ fn avcc_rejects_a_valid_picture_slice_without_starting_a_picture() {
             long_term_ref: false,
             mods: vec![],
             mmcos: vec![],
-            mbs: vec![Some(vec![128; 16 * 16]); NMB],
+            mbs: vec![Some(vec![128; 384]); NMB],
             b: false,
             poc_lsb: Some(0),
             poc_delta: None,
@@ -128,6 +128,7 @@ fn avcc_rejects_a_valid_picture_slice_without_starting_a_picture() {
 
     let mut decoder = Decoder::with_threads(1);
     assert!(decoder.configure_avcc(&avcc).is_err());
+    assert!(decoder.flush().is_empty());
     assert_eq!(decoder.stats().pictures, 0);
 }
 
