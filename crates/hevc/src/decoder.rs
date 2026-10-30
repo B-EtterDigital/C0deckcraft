@@ -161,29 +161,32 @@ impl Decoder {
         ensure!(hvcc.len() >= 23, "hvcC too short");
         ensure!(hvcc[0] == 1, "unsupported hvcC version {}", hvcc[0]);
         let num_arrays = hvcc[22] as usize;
-        let mut pos = 23;
-        let mut sets = Vec::new();
-        for _ in 0..num_arrays {
-            ensure!(pos + 3 <= hvcc.len(), "hvcC truncated");
-            let array_type = hvcc[pos] & 0x3f;
-            let n = u16::from_be_bytes([hvcc[pos + 1], hvcc[pos + 2]]) as usize;
-            pos += 3;
-            for _ in 0..n {
-                ensure!(pos + 2 <= hvcc.len(), "hvcC truncated");
-                let len = u16::from_be_bytes([hvcc[pos], hvcc[pos + 1]]) as usize;
-                pos += 2;
-                ensure!(pos + len <= hvcc.len(), "hvcC truncated");
-                sets.push((array_type, &hvcc[pos..pos + len]));
-                pos += len;
+        for pass in 0..2 {
+            let mut pos = 23;
+            for _ in 0..num_arrays {
+                ensure!(pos <= hvcc.len() && hvcc.len() - pos >= 3, "hvcC truncated");
+                let array_type = hvcc[pos] & 0x3f;
+                let n = u16::from_be_bytes([hvcc[pos + 1], hvcc[pos + 2]]) as usize;
+                pos += 3;
+                for _ in 0..n {
+                    ensure!(pos <= hvcc.len() && hvcc.len() - pos >= 2, "hvcC truncated");
+                    let len = u16::from_be_bytes([hvcc[pos], hvcc[pos + 1]]) as usize;
+                    pos += 2;
+                    ensure!(len <= hvcc.len() - pos, "hvcC truncated");
+                    let nal = &hvcc[pos..pos + len];
+                    if pass == 0 {
+                        let header = NalHeader::parse(nal)?;
+                        ensure!(
+                            [nal_type::VPS, nal_type::SPS, nal_type::PPS, nal_type::PREFIX_SEI, nal_type::SUFFIX_SEI].contains(&array_type),
+                            "hvcC array has unsupported NAL type {array_type}"
+                        );
+                        ensure!(header.nal_type == array_type, "hvcC array type {array_type} disagrees with NAL header type {}", header.nal_type);
+                    } else {
+                        self.handle_nal(nal, 0)?;
+                    }
+                    pos += len;
+                }
             }
-        }
-        for (array_type, nal) in &sets {
-            let header = NalHeader::parse(nal)?;
-            ensure!([nal_type::VPS, nal_type::SPS, nal_type::PPS].contains(array_type), "hvcC array has non-parameter-set NAL type {array_type}");
-            ensure!(header.nal_type == *array_type, "hvcC array type {array_type} disagrees with NAL header type {}", header.nal_type);
-        }
-        for (_, nal) in sets {
-            self.handle_nal(nal, 0)?;
         }
         self.nal_length_size = Some((hvcc[21] & 3) as usize + 1);
         Ok(())
@@ -669,14 +672,14 @@ mod config_tests {
     use super::Decoder;
 
     #[test]
-    fn hvcc_rejects_picture_slices_without_starting_a_picture() {
+    fn hvcc_skips_prefix_and_suffix_sei_arrays() {
         let mut config = vec![0; 23];
         config[0] = 1;
-        config[22] = 1;
-        config.extend_from_slice(&[32, 0, 1, 0, 2, 0x02, 0x01]);
-        let mut decoder = Decoder::with_threads(1);
-        assert!(decoder.configure_hvcc(&config).is_err());
-        assert!(decoder.pending.is_none());
-        assert_eq!(decoder.stats().pictures, 0);
+        config[22] = 2;
+        config.extend_from_slice(&[39, 0, 1, 0, 2, 0x4e, 0x01]);
+        config.extend_from_slice(&[40, 0, 1, 0, 2, 0x50, 0x01]);
+
+        let decoder = Decoder::from_hvcc(&config);
+        assert!(decoder.is_ok());
     }
 }

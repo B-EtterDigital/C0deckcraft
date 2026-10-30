@@ -659,3 +659,46 @@ fn hvcc_accepts_generated_vps_sps_and_pps() {
     }
     assert!(Decoder::from_hvcc(&hvcc).is_ok());
 }
+
+#[test]
+fn hvcc_rejects_a_valid_picture_slice_without_starting_a_picture() {
+    let sets = [vps(), sps(true), pps(0, &None, false)];
+    let mut stream = Vec::new();
+    let mut saved = None;
+    encode_picture(
+        &PicDesc {
+            nal_type: 19,
+            poc: 0,
+            intra: true,
+            cu: Cu::Pcm,
+            pps_id: 0,
+            st: vec![],
+            lt: vec![],
+            num_ref: 0,
+            list_entry: None,
+            segments: whole(WC * HC),
+        },
+        &None,
+        &content(0),
+        &mut stream,
+        &mut saved,
+    );
+
+    let mut hvcc = vec![0; 23];
+    hvcc[0] = 1;
+    hvcc[22] = 4;
+    for (kind, set) in [32, 33, 34].into_iter().zip(sets) {
+        let nal = &set[4..];
+        hvcc.extend_from_slice(&[kind, 0, 1]);
+        hvcc.extend_from_slice(&(nal.len() as u16).to_be_bytes());
+        hvcc.extend_from_slice(nal);
+    }
+    let slice = &stream[4..];
+    hvcc.extend_from_slice(&[19, 0, 1]);
+    hvcc.extend_from_slice(&(slice.len() as u16).to_be_bytes());
+    hvcc.extend_from_slice(slice);
+
+    let mut decoder = Decoder::with_threads(1);
+    assert!(decoder.configure_hvcc(&hvcc).is_err());
+    assert_eq!(decoder.stats().pictures, 0);
+}

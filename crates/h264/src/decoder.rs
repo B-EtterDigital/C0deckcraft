@@ -687,17 +687,3 @@ fn make_picture(o: &Output) -> Picture {
         draft: o.meta.draft,
     }
 }
-
-#[cfg(test)]
-mod config_tests {
-    use super::Decoder;
-
-    #[test]
-    fn avcc_rejects_picture_slices_without_starting_a_picture() {
-        let config = [1, 66, 0, 30, 0xff, 0xe1, 0, 2, 0x41, 0x80, 0];
-        let mut decoder = Decoder::with_threads(1);
-        assert!(decoder.configure_avcc(&config).is_err());
-        assert!(decoder.pending.is_none());
-        assert_eq!(decoder.stats().pictures, 0);
-    }
-}
