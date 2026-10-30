@@ -5982,3 +5982,52 @@ fn master_layout_placeholder_format_inherits() {
         assert_eq!(st["align"], "r", "slide placeholder {id}: {st}");
     }
 }
+
+#[test]
+fn master_body_placeholder_format_keeps_per_level_formatting() {
+    let mut s = Session::new();
+    sample::open_sample(&mut s).unwrap();
+    s.execute("view.slideMaster", &json!({"master": 0})).unwrap();
+    let body_idx =
+        s.doc().unwrap().doc.masters[0].shapes.iter().position(|sh| sh.ph.as_ref().is_some_and(|p| p.kind == model::PhType::Body)).unwrap();
+    let id = {
+        let st = s.doc_mut().unwrap();
+        let sh = &mut std::sync::Arc::make_mut(&mut std::sync::Arc::make_mut(&mut st.doc).masters[0]).shapes[body_idx];
+        let mut body = model::TextBody::from_text("Alpha\nBeta");
+        body.paragraphs[1].level = 1;
+        for (l, size) in [(0u8, 32.0), (1, 28.0)] {
+            let mut lvl = model::text::LevelStyle::default();
+            lvl.run.size = Some(size);
+            body.list_style.set(l, lvl);
+        }
+        sh.text = Some(body);
+        sh.id
+    };
+    let level =
+        |s: &Session, l: u8| s.doc().unwrap().doc.masters[0].shapes[body_idx].text.as_ref().unwrap().list_style.level(l).cloned().unwrap_or_default();
+    // Bolding the level-2 paragraph reaches level 2 only.
+    s.doc_mut().unwrap().selection.shapes = vec![id];
+    s.doc_mut().unwrap().selection.text = Some(TextSel { shape: id, anchor: (1, 0), caret: (1, 4), cell: None, notes: false, line_end: None });
+    s.execute("format.bold", &json!({"on": true})).unwrap();
+    assert_eq!(level(&s, 1).run.bold, Some(true));
+    for l in [0, 2, 3, 8] {
+        assert_eq!(level(&s, l).run.bold, None, "level {}", l + 1);
+    }
+    // Grow and shrink step each level from its own size.
+    s.doc_mut().unwrap().selection.text = None;
+    // The text itself: a run's explicit size, else its level's effective size.
+    let shown = |s: &Session| -> Vec<Option<f64>> {
+        let st = s.doc().unwrap();
+        let ctx = crate::cmd::text::ctx_for(&st.doc, &st.selection).unwrap();
+        let sh = &st.doc.masters[0].shapes[body_idx];
+        let body = sh.text.as_ref().unwrap();
+        body.paragraphs.iter().map(|p| p.runs[0].props.size.or(deckcraft_model::resolve::level_style(&ctx, sh, p.level).run.size)).collect()
+    };
+    s.execute("format.grow", &json!({})).unwrap();
+    assert_eq!((level(&s, 0).run.size, level(&s, 1).run.size), (Some(36.0), Some(32.0)));
+    assert_eq!(shown(&s), vec![Some(36.0), Some(32.0)]);
+    s.execute("format.shrink", &json!({})).unwrap();
+    s.execute("format.shrink", &json!({})).unwrap();
+    assert_eq!((level(&s, 0).run.size, level(&s, 1).run.size), (Some(28.0), Some(24.0)));
+    assert_eq!(shown(&s), vec![Some(28.0), Some(24.0)]);
+}
