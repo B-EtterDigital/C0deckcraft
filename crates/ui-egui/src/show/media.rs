@@ -153,43 +153,10 @@ pub(super) struct Under {
     pub(super) pick: Option<Pick>,
 }
 
-/// Convert a slide-space point back into a shape's own coordinates, undoing its animation and
-/// those of its enclosing groups.
-fn hit_point(mut point: (f64, f64), shapes: &[PlacedShape], states: &[AnimState], index: usize) -> Option<(f64, f64)> {
-    let mut chain = Vec::new();
-    let mut at = Some(index);
-    for _ in 0..=shapes.len() {
-        let Some(i) = at else { break };
-        let shape = shapes.get(i)?;
-        chain.push(i);
-        at = shape.parent;
-    }
-    if at.is_some() {
-        return None;
-    }
-    chain.reverse();
-    let mut centers = Vec::with_capacity(chain.len());
-    for &i in &chain {
-        let r = shapes.get(i)?.rect;
-        let center = transform_point((r.center().x, r.center().y), centers.last().copied());
-        centers.push((center, *states.get(i)?));
-    }
-    for &(center, state) in centers.iter().rev() {
-        point = inverse_transform_point(point, center, state)?;
-    }
-    Some(point)
-}
-
-fn transform_point(mut p: (f64, f64), prior: Option<((f64, f64), AnimState)>) -> (f64, f64) {
-    if let Some((center, state)) = prior {
-        let (x, y) = (p.0 - center.0, p.1 - center.1);
-        let angle = state.rotate.to_radians();
-        p = (
-            center.0 + (x * angle.cos() - y * angle.sin()) * state.scale_x + state.offset_x,
-            center.1 + (x * angle.sin() + y * angle.cos()) * state.scale_y + state.offset_y,
-        );
-    }
-    p
+/// Convert a slide-space point back into a shape's own coordinates, undoing its animation.
+fn hit_point(point: (f64, f64), shapes: &[PlacedShape], states: &[AnimState], index: usize) -> Option<(f64, f64)> {
+    let shape = shapes.get(index)?;
+    inverse_transform_point(point, (shape.rect.center().x, shape.rect.center().y), *states.get(index)?)
 }
 
 fn inverse_transform_point(p: (f64, f64), center: (f64, f64), state: AnimState) -> Option<(f64, f64)> {
@@ -285,13 +252,25 @@ mod hit_tests {
     }
 
     #[test]
-    fn parent_animation_moves_child_hit_box() {
+    fn scale_and_rotation_move_the_hit_box() {
+        let shapes = [shape(1, None, deckcraft_geom::Rect::new(10.0, 10.0, 30.0, 30.0))];
+        let states = [AnimState { scale_x: 2.0, scale_y: 1.0, rotate: 90.0, ..Default::default() }];
+
+        // The shape center is (20, 20); local (25, 25) scales and rotates to (15, 30).
+        let transformed = hit_point((15.0, 30.0), &shapes, &states, 0);
+        assert!(transformed.is_some_and(|(x, y)| (24.9..=25.1).contains(&x) && (24.9..=25.1).contains(&y)));
+    }
+
+    #[test]
+    fn parent_animation_does_not_move_child_hit_box() {
         let shapes =
             [shape(1, None, deckcraft_geom::Rect::new(0.0, 0.0, 100.0, 100.0)), shape(2, Some(0), deckcraft_geom::Rect::new(10.0, 10.0, 30.0, 30.0))];
         let states = [AnimState { offset_x: 40.0, ..Default::default() }, AnimState::default()];
 
-        let moved = hit_point((55.0, 20.0), &shapes, &states, 1);
-        assert!(moved.is_some_and(|(x, y)| (10.0..=30.0).contains(&x) && (10.0..=30.0).contains(&y)));
+        let unchanged = hit_point((15.0, 20.0), &shapes, &states, 1);
+        let displaced = hit_point((55.0, 20.0), &shapes, &states, 1);
+        assert!(unchanged.is_some_and(|(x, y)| (10.0..=30.0).contains(&x) && (10.0..=30.0).contains(&y)));
+        assert!(!displaced.is_some_and(|(x, y)| (10.0..=30.0).contains(&x) && (10.0..=30.0).contains(&y)));
     }
 }
 
