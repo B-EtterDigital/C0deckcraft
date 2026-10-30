@@ -30,6 +30,11 @@ pub use keys::key_name;
 const STATUS_LINGER_MS: f64 = 6000.0;
 
 impl SlideApp {
+    /// Remove temporary PDFs created for printing.
+    pub fn cleanup_print_previews(&mut self) {
+        self.print_previews.cleanup();
+    }
+
     /// Build application UI state, taking ownership of audio output and initialising media, dialogs,
     /// synthetic input, and timing fields.
     pub fn new(session: Session, mut services: Services) -> Self {

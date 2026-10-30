@@ -24,44 +24,17 @@ impl PrintPreviews {
             self.0.retain(|owned| owned != dir);
         }
     }
-}
 
-#[cfg(test)]
-mod print_preview_tests {
-    use super::PrintPreviews;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    #[test]
-    fn same_title_gets_distinct_private_paths_and_drop_cleans_them() {
-        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default();
-        let base = std::env::temp_dir().join(format!("deckcraft-print-test-{}-{stamp}", std::process::id()));
-        std::fs::create_dir(&base).unwrap();
-        let (first, second) = {
-            let mut previews = PrintPreviews::default();
-            let first = previews.create_in(&base, "Same title").unwrap();
-            let second = previews.create_in(&base, "Same title").unwrap();
-            assert_ne!(first, second);
-            assert_eq!(first.file_name(), second.file_name());
-            assert!(first.parent().is_some_and(|dir| dir.is_dir()));
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mode = std::fs::metadata(first.parent().unwrap()).unwrap().permissions().mode();
-                assert_eq!(mode & 0o777, 0o700);
-            }
-            (first, second)
-        };
-        assert!(!first.parent().is_some_and(|dir| dir.exists()));
-        assert!(!second.parent().is_some_and(|dir| dir.exists()));
-        std::fs::remove_dir(base).unwrap();
+    pub(crate) fn cleanup(&mut self) {
+        for dir in self.0.drain(..) {
+            let _ = std::fs::remove_dir_all(dir);
+        }
     }
 }
 
 impl Drop for PrintPreviews {
     fn drop(&mut self) {
-        for dir in &self.0 {
-            let _ = std::fs::remove_dir_all(dir);
-        }
+        self.cleanup();
     }
 }
 
@@ -760,4 +733,50 @@ pub(crate) fn web_image_files(
             (file, bytes)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod print_preview_tests {
+    use super::PrintPreviews;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn same_title_gets_distinct_private_paths_and_drop_cleans_them() {
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default();
+        let base = std::env::temp_dir().join(format!("deckcraft-print-test-{}-{stamp}", std::process::id()));
+        std::fs::create_dir(&base).unwrap();
+        let (first, second) = {
+            let mut previews = PrintPreviews::default();
+            let first = previews.create_in(&base, "Same title").unwrap();
+            let second = previews.create_in(&base, "Same title").unwrap();
+            assert_ne!(first, second);
+            assert_eq!(first.file_name(), second.file_name());
+            assert!(first.parent().is_some_and(|dir| dir.is_dir()));
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(first.parent().unwrap()).unwrap().permissions().mode();
+                assert_eq!(mode & 0o777, 0o700);
+            }
+            (first, second)
+        };
+        assert!(!first.parent().is_some_and(|dir| dir.exists()));
+        assert!(!second.parent().is_some_and(|dir| dir.exists()));
+        std::fs::remove_dir(base).unwrap();
+    }
+
+    #[test]
+    fn explicit_cleanup_removes_previews() {
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default();
+        let base = std::env::temp_dir().join(format!("deckcraft-print-cleanup-test-{}-{stamp}", std::process::id()));
+        std::fs::create_dir(&base).unwrap();
+        let mut previews = PrintPreviews::default();
+        let path = previews.create_in(&base, "Explicit cleanup").unwrap();
+        let dir = path.parent().unwrap().to_path_buf();
+
+        previews.cleanup();
+
+        assert!(!dir.exists());
+        std::fs::remove_dir(base).unwrap();
+    }
 }
