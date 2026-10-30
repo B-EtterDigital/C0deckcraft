@@ -117,10 +117,9 @@ fn avcc_rejects_a_valid_picture_slice_without_starting_a_picture() {
         false,
     );
     let mut avcc = vec![1, 66, 0, 30, 0xff, 0xe1];
-    for nal in [&sequence[4..]] {
-        avcc.extend_from_slice(&(nal.len() as u16).to_be_bytes());
-        avcc.extend_from_slice(nal);
-    }
+    let nal = &sequence[4..];
+    avcc.extend_from_slice(&(nal.len() as u16).to_be_bytes());
+    avcc.extend_from_slice(nal);
     avcc.push(2);
     avcc.extend_from_slice(&((picture.len() - 4) as u16).to_be_bytes());
     avcc.extend_from_slice(&picture[4..]);
