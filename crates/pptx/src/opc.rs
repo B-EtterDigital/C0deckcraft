@@ -93,7 +93,8 @@ impl Package {
                 }
             }
             total = total.saturating_add(data.len() as u64);
-            parts.insert(norm(&name), (name, data));
+            // A name kept with `\` would reach code that splits paths on `/`.
+            parts.insert(norm(&name), (name.replace('\\', "/"), data));
         }
         Ok(Package { parts, ct_cache: std::sync::OnceLock::new() })
     }
@@ -504,6 +505,7 @@ mod tests {
         let z = zip_of(&[("PPT\\Slides\\Slide1.xml", 3)]);
         let p = Package::open(&z).unwrap();
         assert!(p.get("ppt/slides/slide1.xml").is_some());
+        assert_eq!(p.original_name("ppt/slides/slide1.xml"), Some("PPT/Slides/Slide1.xml"));
     }
 
     #[test]
