@@ -700,5 +700,6 @@ fn hvcc_rejects_a_valid_picture_slice_without_starting_a_picture() {
 
     let mut decoder = Decoder::with_threads(1);
     assert!(decoder.configure_hvcc(&hvcc).is_err());
+    assert!(decoder.flush().is_empty());
     assert_eq!(decoder.stats().pictures, 0);
 }
