@@ -56,7 +56,13 @@ pub struct Show {
     tex: Option<(Key, TextureHandle)>,
     /// The shapes stacked above the playing videos, drawn over the video frames (#1005).
     overlay: Option<(Key, Vec<ShapeId>, TextureHandle)>,
-    next_tex: Option<(usize, TextureHandle)>,
+    /// The Presenter View's next-slide preview: the presentation and slide it shows.
+    next_tex: Option<(std::sync::Arc<Presentation>, usize, TextureHandle)>,
+    /// The one next-slide preview being rendered on another thread (#964).
+    next_job: Option<(std::sync::Arc<Presentation>, usize, std::sync::mpsc::Receiver<egui::ColorImage>)>,
+    /// Preview renders started on another thread.
+    #[cfg(test)]
+    preview_spawns: usize,
     /// The next slide's first frame, rendered in the background while this one is shown so
     /// advancing only uploads it (#240).
     prefetch: Option<Prefetch>,
@@ -222,6 +228,9 @@ impl Show {
             tex: None,
             overlay: None,
             next_tex: None,
+            next_job: None,
+            #[cfg(test)]
+            preview_spawns: 0,
             prefetch: None,
             backdrop: None,
             blank: None,

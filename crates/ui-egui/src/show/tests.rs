@@ -1122,3 +1122,119 @@ fn input_state_tracks_the_modes_that_move_show_click_targets() {
     show.blank = Some(Color32::BLACK);
     assert_ne!(show.input_state(), base, "a blank screen has no slide click targets");
 }
+
+/// #964: the next-slide preview renders on another thread; the presenter frame that asks for
+/// it doesn't wait, and the preview arrives on a later frame.
+#[test]
+fn the_presenter_next_preview_arrives_without_blocking_the_frame() {
+    let mut session = deckcraft_engine::Session::with_new();
+    session.execute("slide.new", &json!({})).unwrap();
+    let doc = session.active().unwrap().doc.clone();
+    // One frame on its own (a harness runs frames until the preview lands): it asks for the
+    // preview and returns without it.
+    let mut show = Show::new(&doc, 0, false, true);
+    let mut keep = true;
+    let ctx = egui::Context::default();
+    ctx.run_ui(egui::RawInput::default(), |ui| presenter_window(ui.ctx(), &mut show, &doc, 0.0, &mut keep)).textures_delta.clear();
+    assert!(show.next_job.is_some() && show.next_tex.is_none(), "the first frame leaves the preview pending");
+    assert_eq!(show.preview_spawns, 1);
+    let mut harness = egui_kittest::Harness::builder().with_size(vec2(1100.0, 700.0)).build_ui_state(
+        |ui, (doc, show, keep): &mut (std::sync::Arc<Presentation>, Show, bool)| {
+            let now = ui.input(|i| i.time);
+            presenter_window(ui.ctx(), show, doc, now, keep);
+        },
+        (doc, show, true),
+    );
+    for _ in 0..200 {
+        if harness.state().1.next_tex.is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        harness.step();
+    }
+    assert_eq!(harness.state().1.next_tex.as_ref().map(|(_, n, _)| *n), Some(1));
+    assert!(harness.state().1.next_job.is_none());
+    assert_eq!(harness.state().1.preview_spawns, 1, "the pending render landed; none started over");
+}
+
+/// #964: paging quickly keeps one preview render running, and the preview that lands is the
+/// newest one asked for.
+#[test]
+fn paging_quickly_renders_one_preview_at_a_time_and_lands_on_the_newest() {
+    let mut session = deckcraft_engine::Session::with_new();
+    for _ in 0..7 {
+        session.execute("slide.new", &json!({})).unwrap();
+    }
+    let doc = session.active().unwrap().doc.clone();
+    let show = Show::new(&doc, 0, false, true);
+    let mut harness = egui_kittest::Harness::builder().with_size(vec2(1100.0, 700.0)).build_ui_state(
+        |ui, (doc, show, keep): &mut (std::sync::Arc<Presentation>, Show, bool)| {
+            let now = ui.input(|i| i.time);
+            presenter_window(ui.ctx(), show, doc, now, keep);
+        },
+        (doc, show, true),
+    );
+    let mut turns = 0;
+    for _ in 0..6 {
+        let doc = harness.state().0.clone();
+        let a = harness.state_mut().1.state.next(&doc);
+        harness.state_mut().1.apply(a, &doc, 0.0);
+        harness.step();
+        turns += 1;
+    }
+    let want = harness.state().1.state.peek_next(&harness.state().0);
+    for _ in 0..400 {
+        if harness.state().1.next_tex.as_ref().map(|(_, k, _)| Some(*k)) == Some(want) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        harness.step();
+    }
+    let st = &harness.state().1;
+    assert_eq!(st.next_tex.as_ref().map(|(_, k, _)| *k), want, "the newest preview lands");
+    assert!(st.next_job.is_none());
+    // A render starts only once the one before it has finished: never more than one per turn.
+    assert!(st.preview_spawns <= turns + 1, "{} renders for {turns} turns", st.preview_spawns);
+
+    // While a render is pending, turning the page starts no other.
+    let (_tx, rx) = std::sync::mpsc::channel();
+    let doc = harness.state().0.clone();
+    let spawns = harness.state().1.preview_spawns;
+    harness.state_mut().1.next_tex = None;
+    harness.state_mut().1.next_job = Some((doc.clone(), 0, rx));
+    let a = harness.state_mut().1.state.prev(&doc);
+    harness.state_mut().1.apply(a, &doc, 0.0);
+    harness.step();
+    let st = &harness.state().1;
+    assert_eq!(st.preview_spawns, spawns, "no render starts while one is pending");
+    assert!(st.next_job.is_some());
+}
+
+/// A preview rendered from a presentation that has since been edited (replaced) is dropped,
+/// and the preview is rendered again from the new one.
+#[test]
+fn a_preview_of_an_edited_presentation_is_rendered_again() {
+    let mut session = deckcraft_engine::Session::with_new();
+    session.execute("slide.new", &json!({})).unwrap();
+    let doc = session.active().unwrap().doc.clone();
+    let show = Show::new(&doc, 0, false, true);
+    let mut harness = egui_kittest::Harness::builder().with_size(vec2(1100.0, 700.0)).build_ui_state(
+        |ui, (doc, show, keep): &mut (std::sync::Arc<Presentation>, Show, bool)| {
+            let now = ui.input(|i| i.time);
+            presenter_window(ui.ctx(), show, doc, now, keep);
+        },
+        (doc, show, true),
+    );
+    harness.step();
+    let edited = std::sync::Arc::new((*harness.state().0).clone());
+    harness.state_mut().0 = edited.clone();
+    for _ in 0..400 {
+        if harness.state().1.next_tex.as_ref().is_some_and(|(d, _, _)| std::sync::Arc::ptr_eq(d, &edited)) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        harness.step();
+    }
+    let tex = harness.state().1.next_tex.as_ref().map(|(d, k, _)| (std::sync::Arc::ptr_eq(d, &edited), *k));
+    assert_eq!(tex, Some((true, 1)), "the preview comes from the edited presentation");
+}
