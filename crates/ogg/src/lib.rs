@@ -350,12 +350,12 @@ pub fn open(src: &(impl ByteSource + ?Sized)) -> Result<OggFile> {
     if !found_any {
         return Err(Error::NotOgg);
     }
-    if scanner.spent() {
-        // once per file, so it is not subject to the cap on the others
-        warnings.push("recovery budget spent; the rest of the damaged data was not searched".into());
-    }
     if !partial.is_empty() {
         warn(&mut warnings, "file ends inside a packet".into());
+    }
+    if scanner.spent() {
+        // once per file and last, so it is not subject to the cap on the others
+        warnings.push("recovery budget spent; the rest of the damaged data was not searched".into());
     }
     Ok(OggFile { streams, warnings })
 }
