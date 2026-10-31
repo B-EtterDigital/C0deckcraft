@@ -99,7 +99,6 @@ pub(super) fn paint(d: &Diagram, sh: &mut Shape, i: usize, light: bool) {
                 shape: GradientShape::Linear { angle: 90.0, scaled: false },
                 rotate_with_shape: true,
                 tile: [0.0; 4],
-
                 flip: None,
             }));
             sh.line = Some(Line::solid(ColorRef::scheme(SchemeSlot::Lt1), 1.0));

@@ -186,7 +186,6 @@ fn radial(focus: [f64; 4]) -> Shape {
             stops,
             shape: GradientShape::Path { path: "circle".into(), focus },
             rotate_with_shape: true,
-
             flip: None,
         })),
         line: no_line(),
@@ -515,7 +514,6 @@ fn gradient_lines_and_their_heads_take_the_gradient() {
             shape: GradientShape::Linear { angle, scaled: false },
             rotate_with_shape: true,
             tile: [0.0; 4],
-
             flip: None,
         })
     };
@@ -671,7 +669,6 @@ fn a_gradient_not_rotating_with_its_shape_keeps_to_the_slide() {
             shape: GradientShape::Linear { angle: 0.0, scaled: false },
             rotate_with_shape,
             tile: [0.0; 4],
-
             flip: None,
         };
         // 200 × 100 turned a quarter: it covers 150..250 across and 50..250 down.

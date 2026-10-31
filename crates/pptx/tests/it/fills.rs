@@ -120,7 +120,6 @@ fn a_fill_overlay_round_trips() {
             ],
             shape: GradientShape::Linear { angle: 4.5, scaled: true },
             rotate_with_shape: true,
-
             flip: None,
         }),
     };
@@ -151,7 +150,6 @@ fn a_gradient_tile_rect_is_read_and_round_trips() {
         shape: GradientShape::Path { path: "circle".into(), focus: [0.0, 0.0, 1.0, 1.0] },
         rotate_with_shape: true,
         tile: [-1.0, -1.0, 0.0, 0.0],
-
         flip: None,
     };
     let mut p = defaults::new_presentation(None);
