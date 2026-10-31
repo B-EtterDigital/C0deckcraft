@@ -4,7 +4,7 @@
 
 use deckcraft_color::{ColorScheme, ColorTransform, SchemeSlot};
 use deckcraft_model::ColorRef;
-use deckcraft_model::style::{Gradient, GradientShape, GradientStop, PatternFill};
+use deckcraft_model::style::{Gradient, GradientFlip, GradientShape, GradientStop, PatternFill};
 use egui::{Color32, CornerRadius, Rect, Sense, Stroke, Ui, pos2, vec2};
 use serde_json::{Value, json};
 
@@ -29,16 +29,36 @@ pub fn default_gradient(base: ColorRef, angle: f64) -> Gradient {
 /// The command parameter for `g` (`shape.fill {gradient}` / `design.background {gradient}`).
 pub fn gradient_json(g: &Gradient) -> Value {
     let stops: Vec<Value> = g.stops.iter().map(|s| json!([s.pos, cref_param(&s.color)])).collect();
+    let flip = g.flip.map(GradientFlip::xml);
     match &g.shape {
-        GradientShape::Linear { angle, .. } => json!({"stops": stops, "kind": "linear", "angle": angle, "rotateWithShape": g.rotate_with_shape}),
+        GradientShape::Linear { angle, .. } => {
+            json!({"stops": stops, "kind": "linear", "angle": angle, "rotateWithShape": g.rotate_with_shape, "flip": flip})
+        }
         GradientShape::Path { path, focus } => {
             let kind = match path.as_str() {
                 "rect" => "rectangular",
                 "shape" => "path",
                 _ => "radial",
             };
-            json!({"stops": stops, "kind": kind, "focus": focus, "rotateWithShape": g.rotate_with_shape})
+            json!({"stops": stops, "kind": kind, "focus": focus, "rotateWithShape": g.rotate_with_shape, "flip": flip})
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gradient_json_retains_flip_mode() {
+        let gradient = Gradient {
+            stops: vec![],
+            shape: GradientShape::Linear { angle: 90.0, scaled: false },
+            flip: Some(GradientFlip::Xy),
+            rotate_with_shape: true,
+            tile: [0.0; 4],
+        };
+        assert_eq!(gradient_json(&gradient).get("flip"), Some(&json!("xy")));
     }
 }
 
