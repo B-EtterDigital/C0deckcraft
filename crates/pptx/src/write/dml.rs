@@ -233,7 +233,7 @@ pub fn line(w: &mut W, x: &mut Exp, o: &mut Out, tag: &str, l: &Line) {
     match l.join {
         Some(LineJoin::Round) => w.empty0("a:round"),
         Some(LineJoin::Bevel) => w.empty0("a:bevel"),
-        Some(LineJoin::Miter) => w.empty0("a:miter"),
+        Some(LineJoin::Miter) => w.empty("a:miter", A::new().o("lim", l.miter_limit)),
         None => {}
     }
     for (t, e) in [("a:headEnd", &l.head), ("a:tailEnd", &l.tail)] {

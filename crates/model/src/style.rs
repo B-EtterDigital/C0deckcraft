@@ -324,6 +324,7 @@ pub struct Line {
     pub dash: Option<Dash>,
     pub cap: Option<LineCap>,
     pub join: Option<LineJoin>,
+    pub miter_limit: Option<u32>,
     pub compound: Option<Compound>,
     pub head: Option<LineEnd>,
     pub tail: Option<LineEnd>,
@@ -347,6 +348,7 @@ impl Line {
         }
         self.cap = self.cap.or(parent.cap);
         self.join = self.join.or(parent.join);
+        self.miter_limit = self.miter_limit.or(parent.miter_limit);
         self.compound = self.compound.or(parent.compound);
         if self.head.is_none() {
             self.head.clone_from(&parent.head);

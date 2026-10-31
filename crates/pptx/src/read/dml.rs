@@ -232,7 +232,10 @@ pub fn line(imp: &mut Imp, part: &Part, ln: &El) -> Line {
             }
             "round" => l.join = Some(LineJoin::Round),
             "bevel" => l.join = Some(LineJoin::Bevel),
-            "miter" => l.join = Some(LineJoin::Miter),
+            "miter" => {
+                l.join = Some(LineJoin::Miter);
+                l.miter_limit = e.attr("lim").and_then(|v| v.parse::<u32>().ok()).filter(|v| *v <= 1_000_000);
+            }
             "headEnd" => l.head = line_end(e),
             "tailEnd" => l.tail = line_end(e),
             _ => {}
