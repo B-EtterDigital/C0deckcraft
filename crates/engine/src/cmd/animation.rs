@@ -181,6 +181,42 @@ fn path_num(v: f64) -> String {
     if t == "-0" || t.is_empty() { "0".into() } else { t.into() }
 }
 
+/// Does a raw motion path string draw: only commands and numbers, every number finite, and at
+/// least two points? (A lone `e`, or `1e999`, would play as an empty or partial path.)
+fn raw_path_draws(text: &str) -> bool {
+    let cs: Vec<char> = text.chars().collect();
+    let (mut i, mut nums) = (0, 0usize);
+    while let Some(&c) = cs.get(i) {
+        if c.is_ascii_digit() || c == '.' || ((c == '-' || c == '+') && cs.get(i + 1).is_some_and(|d| d.is_ascii_digit() || *d == '.')) {
+            let start = i;
+            i += 1;
+            while cs.get(i).is_some_and(|d| d.is_ascii_digit() || *d == '.') {
+                i += 1;
+            }
+            if cs.get(i).is_some_and(|d| *d == 'e' || *d == 'E') {
+                let n1 = cs.get(i + 1).copied().unwrap_or(' ');
+                let n2 = cs.get(i + 2).copied().unwrap_or(' ');
+                if n1.is_ascii_digit() || ((n1 == '-' || n1 == '+') && n2.is_ascii_digit()) {
+                    i += 2;
+                    while cs.get(i).is_some_and(char::is_ascii_digit) {
+                        i += 1;
+                    }
+                }
+            }
+            let tok: String = cs.get(start..i).map(|t| t.iter().collect()).unwrap_or_default();
+            match tok.parse::<f64>() {
+                Ok(v) if v.is_finite() => nums += 1,
+                _ => return false,
+            }
+        } else if " ,MmLlCcQqHhVvZzE".contains(c) {
+            i += 1;
+        } else {
+            return false;
+        }
+    }
+    nums >= 4
+}
+
 /// The motion path `path` asks for, as the OOXML path string animations store: either points
 /// (`[[x, y], …]`, slide points as offsets from where the shape sits, joined by lines, `closed?`
 /// to return to the first) or that string itself.
@@ -192,11 +228,7 @@ fn path_param(p: &Value, slide: (f64, f64)) -> Result<Option<String>> {
             let ok = text.len() <= MAX_PATH_TEXT
                 && text.contains(|c: char| c.is_ascii_digit())
                 && text.chars().all(|c| c.is_ascii_digit() || " .+-eE,MmLlCcQqHhVvZz".contains(c))
-                // it must also draw: at least two finite points once parsed the way the show plays it
-                && {
-                    let pts = deckcraft_anim::MotionPath::parse(text).points;
-                    pts.len() >= 2 && pts.iter().all(|(x, y)| x.is_finite() && y.is_finite())
-                };
+                && raw_path_draws(text);
             if !ok {
                 return Err(refuse("string must be an OOXML motion path such as `M 0 0 L 0.25 0 E` (at most 16 KiB)"));
             }
