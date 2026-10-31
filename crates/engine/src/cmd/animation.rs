@@ -191,7 +191,12 @@ fn path_param(p: &Value, slide: (f64, f64)) -> Result<Option<String>> {
         Value::String(text) => {
             let ok = text.len() <= MAX_PATH_TEXT
                 && text.contains(|c: char| c.is_ascii_digit())
-                && text.chars().all(|c| c.is_ascii_digit() || " .+-eE,MmLlCcQqHhVvZz".contains(c));
+                && text.chars().all(|c| c.is_ascii_digit() || " .+-eE,MmLlCcQqHhVvZz".contains(c))
+                // it must also draw: at least two finite points once parsed the way the show plays it
+                && {
+                    let pts = deckcraft_anim::MotionPath::parse(text).points;
+                    pts.len() >= 2 && pts.iter().all(|(x, y)| x.is_finite() && y.is_finite())
+                };
             if !ok {
                 return Err(refuse("string must be an OOXML motion path such as `M 0 0 L 0.25 0 E` (at most 16 KiB)"));
             }
@@ -733,6 +738,8 @@ mod tests {
             json!([[0, 0], [null, 1]]),
             json!("M 0 0 L <script> E"),
             json!("not a path"),
+            json!("eeee1"),
+            json!("M 0 0 L 1e999 0 E"),
             json!(5),
             Value::Array(many),
             Value::String("M 0 0 L 0.1 0.1 ".repeat(10_000)),
