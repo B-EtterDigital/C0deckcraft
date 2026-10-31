@@ -72,6 +72,36 @@ pub struct GradientStop {
     pub color: ColorRef,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GradientFlip {
+    None,
+    X,
+    Y,
+    Xy,
+}
+
+impl GradientFlip {
+    pub fn xml(self) -> &'static str {
+        match self {
+            GradientFlip::None => "none",
+            GradientFlip::X => "x",
+            GradientFlip::Y => "y",
+            GradientFlip::Xy => "xy",
+        }
+    }
+
+    pub fn from_xml(value: &str) -> Option<Self> {
+        match value {
+            "none" => Some(GradientFlip::None),
+            "x" => Some(GradientFlip::X),
+            "y" => Some(GradientFlip::Y),
+            "xy" => Some(GradientFlip::Xy),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum GradientShape {
@@ -90,6 +120,8 @@ pub enum GradientShape {
 pub struct Gradient {
     pub stops: Vec<GradientStop>,
     pub shape: GradientShape,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flip: Option<GradientFlip>,
     #[serde(default = "crate::yes")]
     pub rotate_with_shape: bool,
     /// `a:tileRect`: the box the gradient is laid out in, as insets from the shape's box

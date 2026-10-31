@@ -7,8 +7,8 @@ use deckcraft_geom::Xfrm;
 use deckcraft_model::anim::{AnimClass, AnimStart, Animation, TextBuild, Transition};
 use deckcraft_model::chart::{Chart, ChartType};
 use deckcraft_model::style::{
-    ColorRef, Dash, Effects, Fill, Glow, Gradient, GradientShape, GradientStop, Line, LineEnd, PatternFill, PictureAdjust, PictureFill, PictureMode,
-    Shadow,
+    ColorRef, Dash, Effects, Fill, Glow, Gradient, GradientFlip, GradientShape, GradientStop, Line, LineEnd, PatternFill, PictureAdjust, PictureFill,
+    PictureMode, Shadow,
 };
 use deckcraft_model::table::Table;
 use deckcraft_model::text::{
@@ -115,6 +115,8 @@ pub fn rich_deck() -> Presentation {
         ],
         shape: GradientShape::Linear { angle: 45.0, scaled: false },
         rotate_with_shape: true,
+
+        flip: Some(GradientFlip::Xy),
     }));
     a.line = Some(Line { width: Some(3.0), dash: Some(Dash::Preset { name: "dash".into() }), ..Line::solid(ColorRef::rgb(Rgba::rgb(0, 0, 0)), 3.0) });
     a.effects = Some(Effects {
@@ -486,6 +488,14 @@ fn shapes_fills_lines_effects_round_trip() {
     assert_eq!(c.line, by_name(&p.slides[1], "Connector").line);
     // Ids are kept.
     assert_eq!(by_name(&q.slides[1], "Group").id, by_name(&p.slides[1], "Group").id);
+}
+
+#[test]
+fn gradient_flip_mode_survives_two_pptx_round_trips() {
+    let p = rich_deck();
+    let q = round(&round(&p));
+    let gradient = by_name(&q.slides[1], "Gradient Star").fill.as_ref();
+    assert!(matches!(gradient, Some(Fill::Gradient(g)) if g.flip == Some(GradientFlip::Xy)));
 }
 
 #[test]

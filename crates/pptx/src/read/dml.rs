@@ -3,8 +3,8 @@
 use deckcraft_color::{ColorTransform, Rgba, SchemeSlot};
 use deckcraft_geom::{Xfrm, emu_to_pt};
 use deckcraft_model::style::{
-    ColorBase, ColorRef, Compound, Dash, Effects, Fill, Glow, Gradient, GradientShape, GradientStop, Line, LineCap, LineEnd, LineJoin, PatternFill,
-    PictureFill, PictureMode, Reflection, Shadow,
+    ColorBase, ColorRef, Compound, Dash, Effects, Fill, Glow, Gradient, GradientFlip, GradientShape, GradientStop, Line, LineCap, LineEnd, LineJoin,
+    PatternFill, PictureFill, PictureMode, Reflection, Shadow,
 };
 use deckcraft_model::text::{
     Action, Align, Anchor, AutoFit, BodyProps, Bullet, Caps, Hyperlink, LevelStyle, ListStyle, ParaProps, Paragraph, Run, RunKind, RunProps, Spacing,
@@ -122,7 +122,13 @@ pub fn gradient(f: &El) -> Gradient {
         GradientShape::Linear { angle: 90.0, scaled: false }
     };
     let tile = f.child("tileRect").map(|r| [pct(r, "l"), pct(r, "t"), pct(r, "r"), pct(r, "b")].map(|v| v.unwrap_or(0.0).clamp(-10.0, 10.0)));
-    Gradient { tile: tile.unwrap_or_default(), stops, shape, rotate_with_shape: f.bool("rotWithShape").unwrap_or(true) }
+    Gradient {
+        tile: tile.unwrap_or_default(),
+        stops,
+        shape,
+        flip: f.attr("flip").and_then(GradientFlip::from_xml),
+        rotate_with_shape: f.bool("rotWithShape").unwrap_or(true),
+    }
 }
 
 /// `blipFill` (either `a:` or `p:`) → picture fill, registering the image as media.

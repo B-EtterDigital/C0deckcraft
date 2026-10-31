@@ -108,7 +108,7 @@ pub(crate) fn gradient_param(v: &Value) -> Option<Gradient> {
             scaled: false,
         },
     };
-    Some(Gradient { tile: [0.0; 4], stops, shape, rotate_with_shape: v.get("rotateWithShape").and_then(Value::as_bool).unwrap_or(true) })
+    Some(Gradient { tile: [0.0; 4], stops, shape, rotate_with_shape: v.get("rotateWithShape").and_then(Value::as_bool).unwrap_or(true), flip: None })
 }
 
 /// Fill and outline apply to a group's visible members as well as its container. Other edits
