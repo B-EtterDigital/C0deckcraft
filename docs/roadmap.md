@@ -106,7 +106,7 @@ on common paths. On 2026-10-07 it was ~80% there with these blockers:
 | UI fidelity pass on the most-used ribbon groups and dialogs; first run | Partly (start-screen fixes #20, #49); beta item 11 |
 | Mascot app icon, README screenshots, user docs | App icon (with a scalable SVG, #29) and README screenshots in place; user docs open |
 
-By the standard's definitions DeckCraft is **alpha** (~55% ready); these blockers now feed the beta
+DeckCraft is **alpha** (~55% ready); these blockers now feed the beta
 plan above.
 
 ## Revision history
