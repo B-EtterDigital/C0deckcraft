@@ -266,14 +266,35 @@ impl ParaProps {
         if self.bullet.is_none() {
             self.bullet.clone_from(&p.bullet);
         }
+        if self.bullet_font_follow_text == Some(false) || self.bullet_font.is_some() {
+            self.bullet_font_follow_text = None;
+        }
         if self.bullet_font.is_none() && self.bullet_font_follow_text.is_none() {
-            self.bullet_font.clone_from(&p.bullet_font);
+            if p.bullet_font_follow_text == Some(true) {
+                self.bullet_font_follow_text = Some(true);
+            } else {
+                self.bullet_font.clone_from(&p.bullet_font);
+            }
+        }
+        if self.bullet_color_follow_text == Some(false) || self.bullet_color.is_some() {
+            self.bullet_color_follow_text = None;
         }
         if self.bullet_color.is_none() && self.bullet_color_follow_text.is_none() {
-            self.bullet_color.clone_from(&p.bullet_color);
+            if p.bullet_color_follow_text == Some(true) {
+                self.bullet_color_follow_text = Some(true);
+            } else {
+                self.bullet_color.clone_from(&p.bullet_color);
+            }
         }
-        if self.bullet_size_follow_text.is_none() {
-            self.bullet_size = self.bullet_size.or(p.bullet_size);
+        if self.bullet_size_follow_text == Some(false) || self.bullet_size.is_some() {
+            self.bullet_size_follow_text = None;
+        }
+        if self.bullet_size.is_none() && self.bullet_size_follow_text.is_none() {
+            if p.bullet_size_follow_text == Some(true) {
+                self.bullet_size_follow_text = Some(true);
+            } else {
+                self.bullet_size = p.bullet_size;
+            }
         }
         if self.tabs.is_none() {
             self.tabs.clone_from(&p.tabs);
@@ -663,5 +684,27 @@ mod tests {
         assert_eq!(child.bullet_font, None);
         assert_eq!(child.bullet_color, None);
         assert_eq!(child.bullet_size, None);
+
+        let mut inherited_reset = ParaProps::default();
+        inherited_reset.inherit(&ParaProps {
+            bullet_font_follow_text: Some(true),
+            bullet_color_follow_text: Some(true),
+            bullet_size_follow_text: Some(true),
+            ..Default::default()
+        });
+        assert_eq!(inherited_reset.bullet_font_follow_text, Some(true));
+        assert_eq!(inherited_reset.bullet_color_follow_text, Some(true));
+        assert_eq!(inherited_reset.bullet_size_follow_text, Some(true));
+
+        let mut explicit_false = ParaProps {
+            bullet_font_follow_text: Some(false),
+            bullet_color_follow_text: Some(false),
+            bullet_size_follow_text: Some(false),
+            ..Default::default()
+        };
+        explicit_false.inherit(&parent);
+        assert_eq!(explicit_false.bullet_font, parent.bullet_font);
+        assert_eq!(explicit_false.bullet_color, parent.bullet_color);
+        assert_eq!(explicit_false.bullet_size, parent.bullet_size);
     }
 }

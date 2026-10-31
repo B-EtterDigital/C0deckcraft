@@ -3198,6 +3198,15 @@ fn motion_path_presets_have_paths_ids_and_round_trip() {
 fn numbering_takes_color_and_size() {
     let mut s = Session::with_new();
     s.execute("insert.textBox", &json!({"rect": [10, 10, 300, 100], "text": "One\nTwo"})).unwrap();
+    {
+        let id = s.doc().unwrap().selection.shapes[0];
+        let d = std::sync::Arc::make_mut(&mut s.doc_mut().unwrap().doc);
+        let shape = deckcraft_model::find_shape_mut(&mut std::sync::Arc::make_mut(&mut d.slides[0]).shapes, id).unwrap();
+        let props = &mut shape.text.as_mut().unwrap().paragraphs[0].props;
+        props.bullet_font_follow_text = Some(true);
+        props.bullet_color_follow_text = Some(true);
+        props.bullet_size_follow_text = Some(true);
+    }
     s.execute("format.numbering", &json!({"on": true, "scheme": "romanUcPeriod", "start": 3, "color": "accent2", "size": 150})).unwrap();
     let para = |s: &Session| {
         let st = s.doc().unwrap();
@@ -3207,9 +3216,13 @@ fn numbering_takes_color_and_size() {
     let pp = para(&s);
     assert!(matches!(&pp.bullet, Some(deckcraft_model::text::Bullet::AutoNum { scheme, start_at: 3 }) if scheme == "romanUcPeriod"));
     assert_eq!(pp.bullet_size, Some(1.5));
+    assert_eq!(pp.bullet_font_follow_text, Some(true));
+    assert_eq!(pp.bullet_color_follow_text, None);
+    assert_eq!(pp.bullet_size_follow_text, None);
     assert_eq!(pp.bullet_color, Some(deckcraft_model::ColorRef::scheme(deckcraft_color::SchemeSlot::Accent2)));
     s.execute("format.bullets", &json!({"on": true, "char": "★", "size": 9000})).unwrap();
     assert_eq!(para(&s).bullet_size, Some(4.0));
+    assert_eq!(para(&s).bullet_font_follow_text, None);
 }
 
 #[test]
