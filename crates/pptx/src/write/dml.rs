@@ -233,7 +233,10 @@ pub fn line(w: &mut W, x: &mut Exp, o: &mut Out, tag: &str, l: &Line) {
     match l.join {
         Some(LineJoin::Round) => w.empty0("a:round"),
         Some(LineJoin::Bevel) => w.empty0("a:bevel"),
-        Some(LineJoin::Miter) => w.empty("a:miter", A::new().o("lim", l.miter_limit)),
+        Some(LineJoin::Miter) => {
+            let limit = l.miter_limit.filter(|limit| *limit <= i32::MAX as u32);
+            w.empty("a:miter", A::new().o("lim", limit));
+        }
         None => {}
     }
     for (t, e) in [("a:headEnd", &l.head), ("a:tailEnd", &l.tail)] {
