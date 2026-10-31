@@ -536,8 +536,11 @@ pub fn ppr(w: &mut W, x: &mut Exp, o: &mut Out, tag: &str, level: Option<u8>, p:
         || p.space_after.is_some()
         || p.bullet.is_some()
         || p.bullet_font.is_some()
+        || p.bullet_font_follow_text.is_some()
         || p.bullet_color.is_some()
+        || p.bullet_color_follow_text.is_some()
         || p.bullet_size.is_some()
+        || p.bullet_size_follow_text.is_some()
         || p.tabs.is_some()
         || def.is_some();
     if !has_kids {
@@ -554,15 +557,21 @@ pub fn ppr(w: &mut W, x: &mut Exp, o: &mut Out, tag: &str, level: Option<u8>, p:
     if let Some(s) = &p.space_after {
         spacing(w, "a:spcAft", s);
     }
-    if let Some(c) = &p.bullet_color {
+    if p.bullet_color.is_none() && p.bullet_color_follow_text == Some(true) {
+        w.empty0("a:buClrTx");
+    } else if let Some(c) = &p.bullet_color {
         w.open0("a:buClr");
         color(w, c);
         w.close("a:buClr");
     }
-    if let Some(s) = p.bullet_size {
+    if p.bullet_size.is_none() && p.bullet_size_follow_text == Some(true) {
+        w.empty0("a:buSzTx");
+    } else if let Some(s) = p.bullet_size {
         w.val("a:buSzPct", pct(s.clamp(0.25, 4.0)));
     }
-    if let Some(f) = &p.bullet_font {
+    if p.bullet_font.is_none() && p.bullet_font_follow_text == Some(true) {
+        w.empty0("a:buFontTx");
+    } else if let Some(f) = &p.bullet_font {
         w.empty("a:buFont", A::new().a("typeface", f));
     }
     match &p.bullet {

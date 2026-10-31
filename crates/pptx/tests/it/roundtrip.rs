@@ -506,6 +506,60 @@ fn line_miter_limit_survives_two_pptx_round_trips() {
 }
 
 #[test]
+
+fn bullet_follow_text_resets_survive_two_pptx_round_trips() {
+    let mut p = Presentation::default();
+    let mut textbox = shape(&mut p, "Follow text bullets", 20.0, 20.0, 400.0, 100.0);
+    textbox.text = Some(TextBody {
+        paragraphs: vec![Paragraph {
+            props: deckcraft_model::text::ParaProps {
+                bullet: Some(Bullet::Char { char: "•".into() }),
+                bullet_color_follow_text: Some(true),
+                bullet_size_follow_text: Some(true),
+                bullet_font_follow_text: Some(true),
+                ..Default::default()
+            },
+            runs: vec![Run::with("Bullet text", RunProps::default())],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    Arc::make_mut(&mut p.slides[0]).shapes.push(textbox);
+    let mut conflicting = shape(&mut p, "Explicit bullet values", 20.0, 140.0, 400.0, 100.0);
+    conflicting.text = Some(TextBody {
+        paragraphs: vec![Paragraph {
+            props: deckcraft_model::text::ParaProps {
+                bullet: Some(Bullet::Char { char: "•".into() }),
+                bullet_color: Some(deckcraft_model::style::ColorRef::rgb(deckcraft_color::Rgba::rgb(255, 0, 0))),
+                bullet_color_follow_text: Some(true),
+                bullet_size: Some(1.5),
+                bullet_size_follow_text: Some(true),
+                bullet_font: Some("Inter".into()),
+                bullet_font_follow_text: Some(true),
+                ..Default::default()
+            },
+            runs: vec![Run::with("Explicit bullet text", RunProps::default())],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    Arc::make_mut(&mut p.slides[0]).shapes.push(conflicting);
+
+    let q = round(&round(&p));
+    let props = &by_name(&q.slides[0], "Follow text bullets").text.as_ref().expect("text").paragraphs[0].props;
+    assert_eq!(props.bullet_color_follow_text, Some(true));
+    assert_eq!(props.bullet_size_follow_text, Some(true));
+    assert_eq!(props.bullet_font_follow_text, Some(true));
+    let explicit = &by_name(&q.slides[0], "Explicit bullet values").text.as_ref().expect("text").paragraphs[0].props;
+    assert_eq!(explicit.bullet_color_follow_text, None);
+    assert_eq!(explicit.bullet_size_follow_text, None);
+    assert_eq!(explicit.bullet_font_follow_text, None);
+    assert_eq!(explicit.bullet_size, Some(1.5));
+    assert_eq!(explicit.bullet_font.as_deref(), Some("Inter"));
+    assert_eq!(explicit.bullet_color, Some(deckcraft_model::style::ColorRef::rgb(deckcraft_color::Rgba::rgb(255, 0, 0))));
+}
+
+#[test]
 fn pictures_media_and_ink_round_trip() {
     let p = rich_deck();
     let q = round(&p);
