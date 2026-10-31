@@ -431,8 +431,11 @@ pub fn ppr(imp: &mut Imp, part: &Part, p: &El) -> (Option<u8>, ParaProps, Option
                 }
             }
             "buFont" => pp.bullet_font = e.attr("typeface").map(String::from),
+            "buFontTx" => pp.bullet_font_follow_text = Some(true),
             "buClr" => pp.bullet_color = color(e),
+            "buClrTx" => pp.bullet_color_follow_text = Some(true),
             "buSzPct" => pp.bullet_size = pct(e, "val").map(|v| v.clamp(0.25, 4.0)),
+            "buSzTx" => pp.bullet_size_follow_text = Some(true),
             "tabLst" => {
                 pp.tabs = Some(
                     e.children_named("tab")

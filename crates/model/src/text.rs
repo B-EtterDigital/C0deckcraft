@@ -236,10 +236,13 @@ pub struct ParaProps {
     pub space_after: Option<Spacing>,
     pub bullet: Option<Bullet>,
     pub bullet_font: Option<String>,
+    pub bullet_font_follow_text: Option<bool>,
     /// `None` = follow text colour.
     pub bullet_color: Option<ColorRef>,
+    pub bullet_color_follow_text: Option<bool>,
     /// Bullet size as a fraction of the text size.
     pub bullet_size: Option<f64>,
+    pub bullet_size_follow_text: Option<bool>,
     pub tabs: Option<Vec<TabStop>>,
     pub default_tab: Option<f64>,
     pub rtl: Option<bool>,
@@ -263,13 +266,15 @@ impl ParaProps {
         if self.bullet.is_none() {
             self.bullet.clone_from(&p.bullet);
         }
-        if self.bullet_font.is_none() {
+        if self.bullet_font.is_none() && self.bullet_font_follow_text.is_none() {
             self.bullet_font.clone_from(&p.bullet_font);
         }
-        if self.bullet_color.is_none() {
+        if self.bullet_color.is_none() && self.bullet_color_follow_text.is_none() {
             self.bullet_color.clone_from(&p.bullet_color);
         }
-        self.bullet_size = self.bullet_size.or(p.bullet_size);
+        if self.bullet_size_follow_text.is_none() {
+            self.bullet_size = self.bullet_size.or(p.bullet_size);
+        }
         if self.tabs.is_none() {
             self.tabs.clone_from(&p.tabs);
         }
@@ -630,5 +635,33 @@ impl TextBody {
     pub fn char_len(&self) -> usize {
         let n: usize = self.paragraphs.iter().map(Paragraph::char_len).sum();
         n + self.paragraphs.len().saturating_sub(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use deckcraft_color::Rgba;
+
+    #[test]
+    fn explicit_bullet_follow_text_resets_block_inheritance() {
+        let parent = ParaProps {
+            bullet_font: Some("Inter".into()),
+            bullet_color: Some(ColorRef::rgb(Rgba::rgb(0, 0, 0))),
+            bullet_size: Some(2.0),
+            ..Default::default()
+        };
+        let mut child = ParaProps {
+            bullet_font_follow_text: Some(true),
+            bullet_color_follow_text: Some(true),
+            bullet_size_follow_text: Some(true),
+            ..Default::default()
+        };
+
+        child.inherit(&parent);
+
+        assert_eq!(child.bullet_font, None);
+        assert_eq!(child.bullet_color, None);
+        assert_eq!(child.bullet_size, None);
     }
 }
