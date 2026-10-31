@@ -1,7 +1,9 @@
 //! DrawingML writing: colours, fills, lines, effects, transforms and text.
 
 use deckcraft_geom::{Xfrm, pt_to_emu};
-use deckcraft_model::style::{ColorBase, ColorRef, Compound, Dash, Effects, Fill, GradientShape, Line, LineCap, LineJoin, PictureFill, PictureMode};
+use deckcraft_model::style::{
+    ColorBase, ColorRef, Compound, Dash, Effects, Fill, GradientShape, Line, LineAlign, LineCap, LineJoin, PictureFill, PictureMode,
+};
 use deckcraft_model::text::{
     Action, AutoFit, BodyProps, Bullet, Caps, Hyperlink, ListStyle, ParaProps, Paragraph, RunKind, RunProps, Spacing, Strike, TextBody,
 };
@@ -208,6 +210,7 @@ pub fn line(w: &mut W, x: &mut Exp, o: &mut Out, tag: &str, l: &Line) {
                 LineCap::Flat => "flat",
             }),
         )
+        .o("algn", l.align.map(LineAlign::xml))
         .o("cmpd", l.compound.map(Compound::xml));
     w.open(tag, a);
     if let Some(f) = &l.fill {

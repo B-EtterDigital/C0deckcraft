@@ -560,6 +560,22 @@ fn bullet_follow_text_resets_survive_two_pptx_round_trips() {
 }
 
 #[test]
+
+fn line_alignment_survives_two_pptx_round_trips() {
+    let mut p = Presentation::default();
+    let mut inside = shape(&mut p, "Inset line", 20.0, 20.0, 100.0, 100.0);
+    inside.line = Some(Line { align: Some(deckcraft_model::style::LineAlign::Inside), ..Default::default() });
+    let mut centered = shape(&mut p, "Centered line", 140.0, 20.0, 100.0, 100.0);
+    centered.line = Some(Line { align: Some(deckcraft_model::style::LineAlign::Center), ..Default::default() });
+    Arc::make_mut(&mut p.slides[0]).shapes.extend([inside, centered]);
+
+    let q = round(&round(&p));
+    assert_eq!(by_name(&q.slides[0], "Inset line").line.as_ref().and_then(|line| line.align), Some(deckcraft_model::style::LineAlign::Inside));
+    assert_eq!(by_name(&q.slides[0], "Centered line").line.as_ref().and_then(|line| line.align), Some(deckcraft_model::style::LineAlign::Center));
+    assert_eq!(deckcraft_model::style::LineAlign::from_xml("out"), None);
+}
+
+#[test]
 fn pictures_media_and_ink_round_trip() {
     let p = rich_deck();
     let q = round(&p);
