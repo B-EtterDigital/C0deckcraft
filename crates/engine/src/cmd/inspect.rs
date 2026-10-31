@@ -5,7 +5,7 @@ use deckcraft_model::text::Hyperlink;
 use deckcraft_model::{Shape, ShapeKind};
 use serde_json::{Value, json};
 
-use super::{CommandSpec, always, bad, cmd, has_doc, id_param, str_param, usize_param, xfrm_of};
+use super::{CommandSpec, always, bad, cmd, has_doc, id_param, opt_usize_param, str_param, usize_param, xfrm_of};
 use crate::{Result, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -139,7 +139,7 @@ fn slide(s: &mut Session, p: &Value) -> Result<Value> {
 
 fn actions(s: &mut Session, p: &Value) -> Result<Value> {
     let st = s.doc()?;
-    let i = usize_param(p, "index").unwrap_or(st.selection.slide);
+    let i = opt_usize_param(p, "index", "slide.actions")?.unwrap_or(st.selection.slide);
     let sl = st.doc.slides.get(i).ok_or_else(|| bad("slide.actions", format!("no slide {i}")))?;
     let mut found = Vec::new();
     for sh in &sl.shapes {
@@ -289,5 +289,13 @@ mod tests {
         let mut s = Session::with_new();
         let v = s.execute("slide.actions", &json!({})).unwrap();
         assert_eq!(v["actions"], json!([]));
+    }
+
+    #[test]
+    fn slide_actions_refuses_a_bad_index_instead_of_using_the_selection() {
+        let mut s = Session::with_new();
+        for index in [json!(-1), json!("0"), json!(1.5)] {
+            assert!(s.execute("slide.actions", &json!({"index": index})).is_err(), "{index}");
+        }
     }
 }
