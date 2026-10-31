@@ -232,13 +232,27 @@ pub fn line(imp: &mut Imp, part: &Part, ln: &El) -> Line {
             }
             "round" => l.join = Some(LineJoin::Round),
             "bevel" => l.join = Some(LineJoin::Bevel),
-            "miter" => l.join = Some(LineJoin::Miter),
+            "miter" => {
+                l.join = Some(LineJoin::Miter);
+                l.miter_limit = e.attr("lim").and_then(parse_miter_limit);
+            }
             "headEnd" => l.head = line_end(e),
             "tailEnd" => l.tail = line_end(e),
             _ => {}
         }
     }
     l
+}
+
+fn parse_miter_limit(value: &str) -> Option<u32> {
+    const MAX: u32 = i32::MAX as u32;
+    let value = value.trim();
+    if let Some(percent) = value.strip_suffix('%') {
+        let units = percent.trim().parse::<f64>().ok()? * 1000.0;
+        (units.is_finite() && (0.0..=MAX as f64).contains(&units)).then(|| units.round() as u32)
+    } else {
+        value.parse::<u32>().ok().filter(|limit| *limit <= MAX)
+    }
 }
 
 fn line_end(e: &El) -> Option<LineEnd> {
@@ -666,6 +680,16 @@ mod tests {
         assert!(matches!(color(&d.root).unwrap().base, ColorBase::System { last: Rgba::WHITE, .. }));
         let d = parse(br#"<x><a:scrgbClr r="100000" g="0" b="0"/></x>"#).unwrap();
         assert_eq!(color(&d.root).unwrap().base, ColorBase::Rgb { rgb: Rgba::rgb(255, 0, 0) });
+    }
+
+    #[test]
+    fn miter_limit_accepts_both_percentage_forms_with_schema_bounds() {
+        assert_eq!(parse_miter_limit("200000"), Some(200_000));
+        assert_eq!(parse_miter_limit("200%"), Some(200_000));
+        assert_eq!(parse_miter_limit("1000001"), Some(1_000_001));
+        assert_eq!(parse_miter_limit("malformed"), None);
+        assert_eq!(parse_miter_limit("2147483648"), None);
+        assert_eq!(parse_miter_limit("2147483.648%"), None);
     }
 
     #[test]

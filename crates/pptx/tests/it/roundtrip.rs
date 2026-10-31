@@ -489,6 +489,23 @@ fn shapes_fills_lines_effects_round_trip() {
 }
 
 #[test]
+fn line_miter_limit_survives_two_pptx_round_trips() {
+    let mut p = Presentation::default();
+    let mut limited = shape(&mut p, "Limited miter", 20.0, 20.0, 100.0, 100.0);
+    limited.line = Some(Line { join: Some(deckcraft_model::style::LineJoin::Miter), miter_limit: Some(200_000), ..Default::default() });
+    let mut defaulted = shape(&mut p, "Default miter", 140.0, 20.0, 100.0, 100.0);
+    defaulted.line = Some(Line { join: Some(deckcraft_model::style::LineJoin::Miter), ..Default::default() });
+    let mut large = shape(&mut p, "Large miter", 260.0, 20.0, 100.0, 100.0);
+    large.line = Some(Line { join: Some(deckcraft_model::style::LineJoin::Miter), miter_limit: Some(1_000_001), ..Default::default() });
+    Arc::make_mut(&mut p.slides[0]).shapes.extend([limited, defaulted, large]);
+
+    let q = round(&round(&p));
+    assert_eq!(by_name(&q.slides[0], "Limited miter").line.as_ref().and_then(|line| line.miter_limit), Some(200_000));
+    assert_eq!(by_name(&q.slides[0], "Default miter").line.as_ref().and_then(|line| line.miter_limit), None);
+    assert_eq!(by_name(&q.slides[0], "Large miter").line.as_ref().and_then(|line| line.miter_limit), Some(1_000_001));
+}
+
+#[test]
 fn pictures_media_and_ink_round_trip() {
     let p = rich_deck();
     let q = round(&p);
