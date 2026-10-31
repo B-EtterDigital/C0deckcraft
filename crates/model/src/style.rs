@@ -238,7 +238,6 @@ pub enum LineAlign {
     #[default]
     Center,
     Inside,
-    Outside,
 }
 
 impl LineAlign {
@@ -246,7 +245,6 @@ impl LineAlign {
         match self {
             LineAlign::Center => "ctr",
             LineAlign::Inside => "in",
-            LineAlign::Outside => "out",
         }
     }
 
@@ -254,7 +252,6 @@ impl LineAlign {
         match value {
             "ctr" => Some(LineAlign::Center),
             "in" => Some(LineAlign::Inside),
-            "out" => Some(LineAlign::Outside),
             _ => None,
         }
     }
