@@ -5956,3 +5956,23 @@ fn invalid_slide_index_never_falls_back_to_the_selection_in_export_commands() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn highlight_with_an_invalid_colour_is_rejected_and_keeps_the_highlight() {
+    let mut s = session();
+    let title = s.doc().unwrap().current_slide().unwrap().shapes[0].id.0;
+    s.execute("text.edit", &json!({"id": title})).unwrap();
+    s.execute("text.insert", &json!({"text": "ARCH"})).unwrap();
+    s.execute("text.selectAll", &json!({})).unwrap();
+    s.execute("format.highlight", &json!({"color": "yellow"})).unwrap();
+    let has_highlight = |s: &mut Session| {
+        let t = s.doc().unwrap().shape(ShapeId(title)).unwrap().text.clone().unwrap();
+        t.paragraphs.iter().flat_map(|p| p.runs.iter()).any(|r| r.props.highlight.is_some())
+    };
+    assert!(has_highlight(&mut s));
+    let r = s.execute("format.highlight", &json!({"color": "notacolour"}));
+    assert!(matches!(r, Err(crate::EngineError::BadParams { .. })), "{r:?}");
+    assert!(has_highlight(&mut s), "an invalid colour must not clear the highlight");
+    s.execute("format.highlight", &json!({})).unwrap();
+    assert!(!has_highlight(&mut s), "an absent colour clears the highlight");
+}

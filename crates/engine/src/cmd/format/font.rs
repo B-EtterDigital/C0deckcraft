@@ -227,6 +227,9 @@ pub(super) fn language_all(s: &mut Session, p: &Value) -> Result<Value> {
 
 pub(super) fn highlight(s: &mut Session, p: &Value) -> Result<Value> {
     let c = color_param(p, "color");
+    if c.is_none() && p.get("color").is_some_and(|v| !v.is_null()) {
+        return Err(bad("format.highlight", "`color` is not a valid colour"));
+    }
     format_run(s, &move |r| r.highlight = c.clone())
 }
 
