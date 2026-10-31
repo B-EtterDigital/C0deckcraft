@@ -234,6 +234,34 @@ pub enum LineJoin {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum LineAlign {
+    #[default]
+    Center,
+    Inside,
+    Outside,
+}
+
+impl LineAlign {
+    pub fn xml(self) -> &'static str {
+        match self {
+            LineAlign::Center => "ctr",
+            LineAlign::Inside => "in",
+            LineAlign::Outside => "out",
+        }
+    }
+
+    pub fn from_xml(value: &str) -> Option<Self> {
+        match value {
+            "ctr" => Some(LineAlign::Center),
+            "in" => Some(LineAlign::Inside),
+            "out" => Some(LineAlign::Outside),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Compound {
     #[default]
     Single,
@@ -324,6 +352,7 @@ pub struct Line {
     pub dash: Option<Dash>,
     pub cap: Option<LineCap>,
     pub join: Option<LineJoin>,
+    pub align: Option<LineAlign>,
     pub compound: Option<Compound>,
     pub head: Option<LineEnd>,
     pub tail: Option<LineEnd>,
@@ -347,6 +376,7 @@ impl Line {
         }
         self.cap = self.cap.or(parent.cap);
         self.join = self.join.or(parent.join);
+        self.align = self.align.or(parent.align);
         self.compound = self.compound.or(parent.compound);
         if self.head.is_none() {
             self.head.clone_from(&parent.head);

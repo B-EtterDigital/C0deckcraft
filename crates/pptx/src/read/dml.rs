@@ -3,8 +3,8 @@
 use deckcraft_color::{ColorTransform, Rgba, SchemeSlot};
 use deckcraft_geom::{Xfrm, emu_to_pt};
 use deckcraft_model::style::{
-    ColorBase, ColorRef, Compound, Dash, Effects, Fill, Glow, Gradient, GradientShape, GradientStop, Line, LineCap, LineEnd, LineJoin, PatternFill,
-    PictureFill, PictureMode, Reflection, Shadow,
+    ColorBase, ColorRef, Compound, Dash, Effects, Fill, Glow, Gradient, GradientShape, GradientStop, Line, LineAlign, LineCap, LineEnd, LineJoin,
+    PatternFill, PictureFill, PictureMode, Reflection, Shadow,
 };
 use deckcraft_model::text::{
     Action, Align, Anchor, AutoFit, BodyProps, Bullet, Caps, Hyperlink, LevelStyle, ListStyle, ParaProps, Paragraph, Run, RunKind, RunProps, Spacing,
@@ -222,6 +222,7 @@ pub fn line(imp: &mut Imp, part: &Part, ln: &El) -> Line {
         _ => LineCap::Flat,
     });
     l.compound = ln.attr("cmpd").map(Compound::from_xml);
+    l.align = ln.attr("algn").and_then(LineAlign::from_xml);
     l.fill = fill_of(imp, part, ln);
     for e in ln.elements() {
         match e.local() {
