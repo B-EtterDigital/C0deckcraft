@@ -45,23 +45,6 @@ pub fn gradient_json(g: &Gradient) -> Value {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn gradient_json_retains_flip_mode() {
-        let gradient = Gradient {
-            stops: vec![],
-            shape: GradientShape::Linear { angle: 90.0, scaled: false },
-            flip: Some(GradientFlip::Xy),
-            rotate_with_shape: true,
-            tile: [0.0; 4],
-        };
-        assert_eq!(gradient_json(&gradient).get("flip"), Some(&json!("xy")));
-    }
-}
-
 fn alpha_of(c: &ColorRef) -> f64 {
     c.mods.iter().find_map(|m| if let ColorTransform::Alpha(a) = m { Some(*a as f64 / 100_000.0) } else { None }).unwrap_or(1.0)
 }
@@ -531,4 +514,21 @@ pub fn pattern_editor(ui: &mut Ui, pt: &PatternFill, sc: &ColorScheme) -> Option
         });
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gradient_json_retains_flip_mode() {
+        let gradient = Gradient {
+            stops: vec![],
+            shape: GradientShape::Linear { angle: 90.0, scaled: false },
+            flip: Some(GradientFlip::Xy),
+            rotate_with_shape: true,
+            tile: [0.0; 4],
+        };
+        assert_eq!(gradient_json(&gradient).get("flip"), Some(&json!("xy")));
+    }
 }
