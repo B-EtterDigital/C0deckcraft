@@ -17,7 +17,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Animation Styles",
             ["Animations", "Animation"],
             None,
-            "{effect: fade|fly|zoom|wipe|appear|spin|pulse|fadeOut|lines|… (animation.list), class?: entrance|emphasis|exit|path, option?, ids?} — replaces the shapes' animations",
+            "{effect: fade|fly|zoom|wipe|appear|spin|pulse|fadeOut|lines|… (animation.list), class?: entrance|emphasis|exit|path, option?, path?: [[x,y],…] or OOXML string, closed?: bool, ids?} — replaces the shapes' animations. path (motion paths): points in slide points, as offsets from where the shape sits, or the OOXML path string (slide fractions) animation.get answers",
             has_selection,
             set
         ),
@@ -26,7 +26,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Add Animation",
             ["Animations", "Advanced Animation"],
             None,
-            "{effect, class?, option?, start?: onClick|withPrevious|afterPrevious, duration?: ms, delay?: ms, ids?}",
+            "{effect, class?, option?, path?: [[x,y],…] or OOXML string, closed?: bool, start?: onClick|withPrevious|afterPrevious, duration?: ms, delay?: ms, ids?} → {count, path?}",
             has_selection,
             add
         ),
@@ -46,7 +46,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Effect Options",
             ["Animations", "Animation"],
             None,
-            "{option?, textBuild?: asOne|byParagraph|byWord|byLetter, index?}",
+            "{option?, textBuild?: asOne|byParagraph|byWord|byLetter, path?: [[x,y],…] or OOXML string, closed?: bool, index?}",
             has_slide,
             options
         ),
@@ -129,7 +129,7 @@ fn resolve_option(allowed: &[&str], given: &str) -> Option<String> {
     cands.into_iter().find(|c| allowed.contains(&c.as_str()))
 }
 
-fn build(p: &Value) -> Result<Animation> {
+fn build(p: &Value, slide: (f64, f64)) -> Result<Animation> {
     let effect = str_param(p, "effect").ok_or_else(|| bad("animation", "missing `effect`"))?;
     let class = class_of(str_param(p, "class"));
     let info = match class {
@@ -155,7 +155,9 @@ fn build(p: &Value) -> Result<Animation> {
         a.start = start_of(st);
     }
     if a.class == AnimClass::Path {
-        a.path = Some(default_path(&a.effect, &a.option));
+        a.path = Some(path_param(p, slide)?.unwrap_or_else(|| default_path(&a.effect, &a.option)));
+    } else if p.get("path").is_some() {
+        return Err(bad("animation", "`path` only fits a motion path (class `path`)"));
     }
     if a.effect == "spin" {
         a.amount = Some(360.0);
@@ -164,6 +166,60 @@ fn build(p: &Value) -> Result<Animation> {
         a.amount = Some(1.5);
     }
     Ok(a)
+}
+
+/// Most points of a motion path given as an array, and longest path string given as text.
+const MAX_PATH_POINTS: usize = 1_000;
+const MAX_PATH_TEXT: usize = 16 * 1024;
+/// Largest offset of a point, in slide points; anything beyond is not a place on any slide.
+const MAX_PATH_OFFSET: f64 = 1.0e6;
+
+/// A number of a path string: slide fractions, rounded to 6 places.
+fn path_num(v: f64) -> String {
+    let t = format!("{:.6}", v);
+    let t = t.trim_end_matches('0').trim_end_matches('.');
+    if t == "-0" || t.is_empty() { "0".into() } else { t.into() }
+}
+
+/// The motion path `path` asks for, as the OOXML path string animations store: either points
+/// (`[[x, y], …]`, slide points as offsets from where the shape sits, joined by lines, `closed?`
+/// to return to the first) or that string itself.
+fn path_param(p: &Value, slide: (f64, f64)) -> Result<Option<String>> {
+    let Some(v) = p.get("path") else { return Ok(None) };
+    let refuse = |why: &str| bad("animation", format!("`path` {why}"));
+    match v {
+        Value::String(text) => {
+            let ok = text.len() <= MAX_PATH_TEXT
+                && text.contains(|c: char| c.is_ascii_digit())
+                && text.chars().all(|c| c.is_ascii_digit() || " .+-eE,MmLlCcQqHhVvZz".contains(c));
+            if !ok {
+                return Err(refuse("string must be an OOXML motion path such as `M 0 0 L 0.25 0 E` (at most 16 KiB)"));
+            }
+            Ok(Some(text.clone()))
+        }
+        Value::Array(points) => {
+            if !(2..=MAX_PATH_POINTS).contains(&points.len()) {
+                return Err(refuse(&format!("needs 2 to {MAX_PATH_POINTS} points")));
+            }
+            if !(slide.0.is_finite() && slide.1.is_finite() && slide.0 > 0.0 && slide.1 > 0.0) {
+                return Err(refuse("can't be placed: the slide has no size"));
+            }
+            let mut out = String::new();
+            for (k, pt) in points.iter().enumerate() {
+                let xy = pt.as_array().filter(|a| a.len() == 2).and_then(|a| Some((a.first()?.as_f64()?, a.get(1)?.as_f64()?)));
+                let Some((x, y)) = xy.filter(|(x, y)| x.abs() <= MAX_PATH_OFFSET && y.abs() <= MAX_PATH_OFFSET) else {
+                    return Err(refuse(&format!("point {k} must be [x, y], two finite numbers within ±{MAX_PATH_OFFSET} points")));
+                };
+                out.push_str(&format!("{} {} {} ", if k == 0 { "M" } else { "L" }, path_num(x / slide.0), path_num(y / slide.1)));
+            }
+            if p.get("closed").and_then(Value::as_bool) == Some(true) {
+                out.push_str("Z ");
+            }
+            out.push('E');
+            Ok(Some(out))
+        }
+        _ => Err(refuse("must be [[x, y], …] or an OOXML path string")),
+    }
 }
 
 /// Default motion paths, in slide-fraction units relative to the shape's position.
@@ -185,7 +241,7 @@ pub fn default_path(effect: &str, option: &str) -> String {
 
 fn set(s: &mut Session, p: &Value) -> Result<Value> {
     let ids = targets(s, p)?;
-    let a = build(p)?;
+    let a = build(p, slide_extent(s)?)?;
     s.edit(|doc, sel| {
         let sl = doc.slides.get_mut(sel.slide).ok_or_else(|| bad("animation.set", "no slide"))?;
         let sl = Arc::make_mut(sl);
@@ -215,9 +271,16 @@ fn set(s: &mut Session, p: &Value) -> Result<Value> {
     })
 }
 
+/// The slide's width and height in points.
+fn slide_extent(s: &mut Session) -> Result<(f64, f64)> {
+    let size = &s.doc()?.doc.slide_size;
+    Ok((size.width, size.height))
+}
+
 fn add(s: &mut Session, p: &Value) -> Result<Value> {
     let ids = targets(s, p)?;
-    let a = build(p)?;
+    let a = build(p, slide_extent(s)?)?;
+    let path = a.path.clone();
     s.edit(|doc, sel| {
         let sl = Arc::make_mut(doc.slides.get_mut(sel.slide).ok_or_else(|| bad("animation.add", "no slide"))?);
         for (k, id) in ids.iter().enumerate() {
@@ -227,7 +290,10 @@ fn add(s: &mut Session, p: &Value) -> Result<Value> {
             }
             sl.animations.push(x);
         }
-        Ok(json!({"count": sl.animations.len()}))
+        Ok(match &path {
+            Some(path) => json!({"count": sl.animations.len(), "path": path}),
+            None => json!({"count": sl.animations.len()}),
+        })
     })
 }
 
@@ -320,13 +386,17 @@ fn options(s: &mut Session, p: &Value) -> Result<Value> {
         "byLetter" => TextBuild::ByLetter,
         _ => TextBuild::AsOne,
     });
+    let path = path_param(p, slide_extent(s)?)?;
     each_target(s, p, |a| {
+        if let (Some(path), AnimClass::Path) = (&path, a.class) {
+            a.path = Some(path.clone());
+        }
         if let Some(o) = &option {
             // Each target takes the option in its own effect's terms; one it has no such
             // option for keeps its own.
             let allowed = animation_info(&a.effect, a.class).map(|i| i.5).unwrap_or(&[]);
             if let Some(o) = resolve_option(allowed, o) {
-                if a.class == AnimClass::Path {
+                if a.class == AnimClass::Path && path.is_none() {
                     a.path = Some(default_path(&a.effect, &o));
                 }
                 a.option = o;
@@ -605,5 +675,75 @@ mod tests {
             assert!(r.is_err(), "animation.move accepted index {bad_index}: {r:?}");
             assert_eq!(s.execute("animation.get", &json!({})).unwrap().as_array().unwrap().len(), 1);
         }
+    }
+
+    fn path_of(s: &mut Session) -> Option<String> {
+        let all = s.execute("animation.get", &json!({})).unwrap();
+        all.as_array().unwrap().last().and_then(|a| a.get("path")).and_then(Value::as_str).map(String::from)
+    }
+
+    fn shape(s: &mut Session) -> u64 {
+        s.execute("shape.insert", &json!({"preset": "ellipse", "rect": [100.0, 400.0, 20.0, 20.0]})).unwrap().get("id").unwrap().as_u64().unwrap()
+    }
+
+    /// #1576: points in slide points, as offsets from the shape, become the slide-fraction path.
+    #[test]
+    fn a_custom_path_takes_its_points() {
+        let mut s = Session::with_new();
+        let id = shape(&mut s);
+        let w = s.doc().unwrap().doc.slide_size.width;
+        let h = s.doc().unwrap().doc.slide_size.height;
+        let r = s
+            .execute(
+                "animation.add",
+                &json!({"effect": "customPath", "class": "path", "path": [[0, 0], [w / 2.0, -h / 4.0], [w, -h / 2.0]], "ids": [id]}),
+            )
+            .unwrap();
+        assert_eq!(r["path"], "M 0 0 L 0.5 -0.25 L 1 -0.5 E");
+        assert_eq!(path_of(&mut s).as_deref(), Some("M 0 0 L 0.5 -0.25 L 1 -0.5 E"));
+        // closed shapes end back at the start; set replaces; no path keeps the default
+        s.execute("animation.set", &json!({"effect": "customPath", "path": [[0, 0], [w / 4.0, 0], [w / 4.0, h / 4.0]], "closed": true, "ids": [id]}))
+            .unwrap();
+        assert_eq!(path_of(&mut s).as_deref(), Some("M 0 0 L 0.25 0 L 0.25 0.25 Z E"));
+        s.execute("animation.set", &json!({"effect": "customPath", "ids": [id]})).unwrap();
+        assert_eq!(path_of(&mut s).as_deref(), Some("M 0 0 L 0 0.25 E"));
+    }
+
+    #[test]
+    fn a_raw_path_string_is_kept_and_options_edits_it() {
+        let mut s = Session::with_new();
+        let id = shape(&mut s);
+        s.execute("animation.add", &json!({"effect": "customPath", "path": "M 0 0 C 0.1 0 0.2 0.1 0.3 0.1 E", "ids": [id]})).unwrap();
+        assert_eq!(path_of(&mut s).as_deref(), Some("M 0 0 C 0.1 0 0.2 0.1 0.3 0.1 E"));
+        s.execute("animation.options", &json!({"index": 0, "path": [[0, 0], [96, 54]]})).unwrap();
+        assert_eq!(path_of(&mut s).as_deref(), Some("M 0 0 L 0.1 0.1 E"));
+    }
+
+    #[test]
+    fn a_bad_path_is_refused_and_changes_nothing() {
+        let mut s = Session::with_new();
+        let id = shape(&mut s);
+        let many: Vec<Value> = (0..2_000).map(|i| json!([i, i])).collect();
+        for bad_path in [
+            json!([[0, 0]]),
+            json!([]),
+            json!([[0, 0], [1]]),
+            json!([[0, 0], ["a", 1]]),
+            json!([[0, 0], [1e300, 1]]),
+            json!([[0, 0], [null, 1]]),
+            json!("M 0 0 L <script> E"),
+            json!("not a path"),
+            json!(5),
+            Value::Array(many),
+            Value::String("M 0 0 L 0.1 0.1 ".repeat(10_000)),
+        ] {
+            let r = s.execute("animation.add", &json!({"effect": "customPath", "path": bad_path, "ids": [id]}));
+            assert!(r.is_err(), "{bad_path:.60}");
+        }
+        assert!(
+            s.execute("animation.add", &json!({"effect": "fade", "path": [[0, 0], [1, 1]], "ids": [id]})).is_err(),
+            "path only fits a motion path"
+        );
+        assert!(s.execute("animation.get", &json!({})).unwrap().as_array().unwrap().is_empty(), "a refused add left an animation behind");
     }
 }
