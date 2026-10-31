@@ -95,8 +95,7 @@ Detail in [file-format-parity.md](file-format-parity.md).
   outside this repo.
 - **Impact:** the main reason to switch is "open my PowerPoint decks". Fidelity on real decks
   (corporate templates, SmartArt, `chartex` charts, embedded fonts, EMF) is still mostly unknown.
-- **Estimate:** 20–35 h: grow the owned corpus in `storytold/photocraft-corpus` style (craftrules
-  `standards/test-corpora.md`), add render checks, have the owner open outputs in PowerPoint, fix
+- **Estimate:** 20–35 h: grow the owned corpus in `storytold/photocraft-corpus` style, add render checks, have the owner open outputs in PowerPoint, fix
   what breaks. **Beta blocker.**
 
 ### Round trip loses media playback options (#74)
@@ -305,7 +304,7 @@ Detail in [ui-parity.md](ui-parity.md).
   choice, video/GIF/CD exports or document protection. 4–8 h for the parts that need no cloud.
 - **Window chrome** (#71 macOS controls misaligned, #26 GNOME title bar, #41 system light/dark).
   2–4 h.
-- **Icon consistency across Craft apps** (#73, #56). 2–4 h; coordinate in craftrules.
+- **Icon consistency across Craft apps** (#73, #56). 2–4 h.
 - **Dialogs**: 42 dialogs vs PowerPoint's ~60. In since the d556ff9 count of 27: Font, Paragraph
   and Tabs, Columns, Bullets and Numbering, Find and Replace, Replace Fonts, Action Settings, Size and
   Position, Date and Time, Photo Album (Edit Photo Album reopens it), Create New Theme Colors and

@@ -16,7 +16,7 @@ number.
 | **Ready for real work** | **~55%** | **estimated**: weighted dimension table below (was ~56% until the features row was recomputed from written area weights) |
 | **Mainstream practitioner** | **~53%** | **estimated**: [method below](#mainstream-practitioner-and-essentials-user) |
 | **Essentials user** | **~62%** | **estimated**: [method below](#mainstream-practitioner-and-essentials-user) |
-| Stage | **alpha** (beta is ~20 points and ~120–210 h away) | judgement against craftrules `standards/progress-docs.md`: ~55% is in the alpha band and all six core workflows pass the [alpha gate](roadmap.md#alpha-gate-powerpoints-core-workflows) |
+| Stage | **alpha** (beta is ~20 points and ~120–210 h away) | judgement: ~55% is in the alpha band and all six core workflows pass the [alpha gate](roadmap.md#alpha-gate-powerpoints-core-workflows) |
 | Remaining effort to beta | **~120–210 Opus 5.5 agent hours** | estimated, itemized in [roadmap.md](roadmap.md) |
 | Remaining effort to full parity | **~365–650 Opus 5.5 agent hours** | estimated, by dimension below |
 
@@ -85,8 +85,7 @@ multi-display rigs).
 
 ## Mainstream practitioner and essentials user
 
-Two narrower readings of "ready", computed the same way in every Craft app (craftrules
-`standards/progress-docs.md`). The stage still follows the full number above and the alpha gate.
+Two narrower readings of "ready", computed the same way in every Craft app. The stage still follows the full number above and the alpha gate.
 
 ### Mainstream practitioner: ~53%
 
