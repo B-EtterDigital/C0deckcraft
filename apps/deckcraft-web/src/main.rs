@@ -23,6 +23,8 @@
 
 #[cfg(feature = "page-control")]
 mod page_control;
+#[cfg(any(target_arch = "wasm32", test))]
+mod api;
 #[cfg(target_arch = "wasm32")]
 mod host;
 #[cfg(target_arch = "wasm32")]

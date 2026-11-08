@@ -82,6 +82,7 @@ pub fn start() {
                     {
                         crate::host::Bridge::set_author(&mut app, &author);
                     }
+                    crate::api::install(&mut app, cc.egui_ctx.clone());
                     #[cfg(feature = "page-control")]
                     let app = crate::page_control::attach(app, &cc.egui_ctx, [PRESENTATION_EXTS, PICTURE_EXTS, AUDIO_EXTS, VIDEO_EXTS]);
                     Ok(Box::new(WebShell { app, inbox, bridge: app_bridge }))
