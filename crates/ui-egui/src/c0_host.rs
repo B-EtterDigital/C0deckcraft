@@ -8,6 +8,7 @@ mod files;
 pub use files::validate_name;
 pub use ai::{MAX_PICTURE_BYTES, methods as ai_methods};
 mod settings;
+mod thumbnails;
 mod tools;
 #[cfg(target_arch = "wasm32")]
 pub use drops::{FileReadBudget, read_drop, reserve_file_bytes};
@@ -34,11 +35,13 @@ pub struct Chrome {
     pub start_screen: bool,
     pub community_links: bool,
     pub status_bar: bool,
+    /// The slide thumbnail strip. Off while the host draws the slides itself.
+    pub slides_panel: bool,
 }
 
 impl Default for Chrome {
     fn default() -> Self {
-        Self { title_bar: true, file_tab: true, start_screen: true, community_links: true, status_bar: true }
+        Self { title_bar: true, file_tab: true, start_screen: true, community_links: true, status_bar: true, slides_panel: true }
     }
 }
 
@@ -47,6 +50,7 @@ pub(crate) struct State {
     pending: Option<files::Replacement>,
     pub scroll_to: Option<usize>,
     pub(crate) tools: tools::Tools,
+    pub(crate) thumbs: thumbnails::Cache,
 }
 
 pub fn handle(app: &mut SlideApp, ctx: &egui::Context, method: &str, params: &Value) -> Result<Value, String> {
@@ -69,6 +73,7 @@ pub fn handle(app: &mut SlideApp, ctx: &egui::Context, method: &str, params: &Va
         "c0.set" => settings::set(app, ctx, params),
         "c0.selection" => ai::selection(app),
         "c0.place" => ai::place(app, params),
+        "c0.thumbnails" => thumbnails::read(app, params),
         _ => Err(format!("unknown method `{method}`")),
     }
 }
@@ -96,7 +101,7 @@ pub fn inspect(app: &SlideApp) -> Value {
             })
         })
         .collect();
-    let mut panes = json!({"notes": app.ui.notes, "ruler": app.ui.ruler, "thumbnails": state.is_some() && matches!(app.ui.view, crate::ViewMode::Normal | crate::ViewMode::Reading)});
+    let mut panes = json!({"notes": app.ui.notes, "ruler": app.ui.ruler, "slides_panel": app.chrome.slides_panel, "thumbnails": state.is_some() && matches!(app.ui.view, crate::ViewMode::Normal | crate::ViewMode::Reading)});
     tools::report(app, &mut panes);
     json!({
         "title": state.map(|s| s.title()), "dirty": state.is_some_and(|s| s.is_dirty()),

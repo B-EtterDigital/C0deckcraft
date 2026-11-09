@@ -19,7 +19,7 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `crates/media/src/probe.rs` | 1 | Policy at probe entry | Restricted formats are not advertised as playable | Proposed: packaging option |
 | `crates/media/src/video.rs` | 6 | Include unchanged adapters gated in their own file, gate match arms and decode policy | Exclude decoder references when disabled | Proposed: packaging option |
 | `crates/ui-egui/Cargo.toml` | 5 | Forward codec defaults; depend on opt-out-capable engine/media | Native behavior unchanged, web feature propagation | Proposed: packaging option |
-| `crates/ui-egui/src/app.rs` | 5 | Host state initialisation in `SlideApp::new`, logic tick, title and bars draw seams; Backstage open/sync lifecycle (25 removed lines) moved to `c0_host/chrome.rs` | Keep host implementation in new files; host visibility guard before the existing lifecycle | No |
+| `crates/ui-egui/src/app.rs` | 6 | Host state initialisation in `SlideApp::new`, logic tick, title and bars draw seams, and the slide strip draw gate (`slides_panel`); Backstage open/sync lifecycle (25 removed lines) moved to `c0_host/chrome.rs` | Keep host implementation in new files; host visibility guard before the existing lifecycle | No |
 | `crates/ui-egui/src/app/commands.rs` | 2 | Media preflight at the top of `run`; guard `app.links` on the community-links switch | Reject restricted playback; hidden links have no command | No |
 | `crates/ui-egui/src/backstage/files.rs` | 1 | Delegate the Home community link | Home honours the host switch | No |
 | `crates/ui-egui/src/backstage/info.rs` | 1 | Delegate the Account community links (two lines to one call) | Account honours the host switch | No |
@@ -33,9 +33,9 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `crates/ui-egui/src/ribbon/slide_show.rs` | 1 | Delegate the existing Learn More group (five lines to one call) | No promotional button when disabled | No |
 | `crates/ui-egui/src/theme.rs` | 3 | Register overrides, one-line Tokens::get resolver, resolve widget styles on brightness changes | Runtime palette survives light/dark | Proposed: generic context-local palettes |
 
-Total: 68 added lines in modified upstream files.
+Total: 69 added lines in modified upstream files.
 
-Ratchet: 68
+Ratchet: 69
 
 “Proposed” and “Yes” identify changes suitable/intended for upstream. This executor opens no PR,
 sends no upstream messages and pushes nothing. The controller owns any actual submission.

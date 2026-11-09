@@ -73,13 +73,14 @@ Names are case-sensitive. Slide indices are zero-based; numeric ids are stable w
 | `c0.show` | `{action:"start"\|"end",from?:index}` | `{showing:boolean}`; page-local reading show with no presenter window; default start follows the existing show settings |
 | `c0.set` | `{themeTokens?,panels?}` | `{applied:[key],unknown:[key],invalid:[key]}` |
 | `c0.selection` | `{}` | `{kind:"slide",slideIndex,slideCount,title,bodyText,notes,selectedText?,outline:[{index,title}]}`; `selectedText` only when a text range or one text box is selected. Error when no deck or no slides |
+| `c0.thumbnails` | `{from?:index,count?:number,width?:number}` | `{slides:[{index,id,png,width,height}],total}`; base64 PNGs of slides `from` up to `count` (default 20, max 50), `width` px wide (default 160, clamped 64-320) keeping the slide's aspect ratio; unchanged slides reuse their picture; bad types are plain-text errors; drawn with the strip's renderer, colour only |
 | `c0.place` | exactly one of `{slides:[{title,bullets:[string],notes?}],after?:index}`, `{text,mode:"replace-selection"}`, `{notes,slideIndex?}`, `{png\|jpeg:base64,name}` | `{placed:"slides",count,indices}`, `{placed:"text",characters}`, `{placed:"notes",slideIndex}`, `{placed:"picture",id,slideIndex,rect:{x,y,width,height}}` (points); one undo step, deck dirty; errors are plain text, nothing changes; pictures over 40 MB refused |
 
 `title` is `DocState::title()`. `dirty` and `revision` come directly from `DocState`. Each slide is
 `{index,id,title,hidden,section?}`, with the section name present when assigned. Each section is
 `{name,first,count}`; `first` is null for an empty section. With no document, title/currentSlide
 are null, revision/slideCount are zero and slides/sections are empty. `canUndo`/`canRedo` reflect
-the engine's history. `panes` is `{notes,ruler,thumbnails}`. `theme` is UI brightness, `light` or
+the engine's history. `panes` is `{notes,ruler,thumbnails,slides_panel}`. `theme` is UI brightness, `light` or
 `dark`, independently of the presentation's document theme. `showing` is a boolean.
 
 Navigation numbers prefer valid indices, then fall back to matching slide ids. Use a string id or
@@ -99,7 +100,7 @@ builds without `page-control` retain their existing drop behavior.
 
 ## Chrome settings
 
-All five `Chrome` fields default to true, preserving upstream behavior and remaining outside
+All six `Chrome` fields default to true, preserving upstream behavior and remaining outside
 serialized preferences/documents. The host can change them at runtime:
 
 ```json
@@ -119,6 +120,7 @@ serialized preferences/documents. The host can change them at runtime:
 | `toolbar` | Default true. False folds the ribbon's command card to the tab row; tab clicks cannot bring it back while the host holds it off |
 | `toolbar_double` | Default false. True draws the ribbon compact (scaled to 0.8) in the same dock |
 | `toolbar_floating` | Default false. True lifts the ribbon into a movable strip over the canvas area (drag its grip row). Combines with `toolbar_double` |
+| `slides_panel` | Default true. False hides the slide thumbnail strip, so the host can draw the slides itself with `c0.thumbnails` (`c0.inspect.panes.slides_panel` reports it). Code: `crates/ui-egui/src/c0_host.rs`; tests: `crates/ui-egui/tests/c0_chrome.rs` |
 | `right_dock_collapsed` | Default false. True folds the task pane to a narrow icon strip (one icon per pane, plus Unfold); the open pane is remembered and returns on unfold. An icon, or any other way of opening a pane, unfolds the dock |
 
 All values must be booleans. Unknown keys are reported as `panels.<key>`; wrong types as invalid.

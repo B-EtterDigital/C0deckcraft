@@ -315,7 +315,7 @@ impl SlideApp {
                     }
                     if self.ui.view == ViewMode::Outline {
                         sorter::outline_pane(self, ui);
-                    } else {
+                    } else if self.chrome.slides_panel {
                         thumbs::show(self, ui);
                     }
                     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {

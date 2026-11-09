@@ -412,3 +412,78 @@ fn a_refused_placement_changes_nothing() {
     assert_eq!(undo_len(&app), steps);
     assert!(std::sync::Arc::ptr_eq(&app.session.active().unwrap().doc, &before));
 }
+
+/// Width and height from a PNG's IHDR chunk.
+fn png_size(png: &[u8]) -> (u32, u32) {
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n", "not a PNG");
+    let be = |i: usize| u32::from_be_bytes(png[i..i + 4].try_into().unwrap());
+    (be(16), be(20))
+}
+
+#[test]
+fn thumbnails_return_a_png_per_slide_at_the_requested_width() {
+    let mut app = app();
+    let ctx = egui::Context::default();
+    app.run("slide.new", json!({"title":"Second"})).unwrap();
+    let r = call(&mut app, &ctx, "c0.thumbnails", json!({"width": 100}));
+    assert_eq!(r["total"], 2);
+    let slides = r["slides"].as_array().unwrap();
+    assert_eq!(slides.len(), 2);
+    let ids: Vec<Value> = app.session.active().unwrap().doc.slides.iter().map(|s| json!(s.id)).collect();
+    for (i, slide) in slides.iter().enumerate() {
+        assert_eq!(slide["index"], i);
+        assert_eq!(slide["id"], ids[i]);
+        // The default slide is 960 x 540 points: 16:9 at 100 px wide.
+        assert_eq!((slide["width"].as_u64(), slide["height"].as_u64()), (Some(100), Some(56)));
+        let png = deckcraft_engine::cmd::base64_decode(slide["png"].as_str().unwrap()).unwrap();
+        assert_eq!(png_size(&png), (100, 56));
+    }
+}
+
+#[test]
+fn thumbnails_page_clamp_and_empty_decks_are_not_errors() {
+    let mut app = app();
+    let ctx = egui::Context::default();
+    for _ in 0..4 {
+        app.run("slide.new", json!({})).unwrap();
+    }
+    let page = call(&mut app, &ctx, "c0.thumbnails", json!({"from":3,"count":5}));
+    assert_eq!(page["total"], 5);
+    assert_eq!(page["slides"].as_array().unwrap().iter().map(|s| s["index"].clone()).collect::<Vec<_>>(), [json!(3), json!(4)]);
+    let past = call(&mut app, &ctx, "c0.thumbnails", json!({"from":9}));
+    assert_eq!((past["total"].clone(), past["slides"].as_array().unwrap().len()), (json!(5), 0));
+    let all = call(&mut app, &ctx, "c0.thumbnails", json!({"count":500}));
+    assert_eq!(all["slides"].as_array().unwrap().len(), 5);
+    let default_count = call(&mut app, &ctx, "c0.thumbnails", json!({}));
+    assert_eq!(default_count["slides"].as_array().unwrap().len(), 5);
+    for (width, expected) in [(10, 64), (9000, 320), (160, 160)] {
+        let r = call(&mut app, &ctx, "c0.thumbnails", json!({"from":0,"count":1,"width":width}));
+        let png = deckcraft_engine::cmd::base64_decode(r["slides"][0]["png"].as_str().unwrap()).unwrap();
+        assert_eq!(png_size(&png).0, expected, "width {width}");
+    }
+    let mut empty = SlideApp::new(Session::new(), Services::default());
+    assert_eq!(call(&mut empty, &ctx, "c0.thumbnails", json!({})), json!({"slides": [], "total": 0}));
+}
+
+#[test]
+fn thumbnails_refuse_bad_params_with_plain_text() {
+    let mut app = app();
+    let ctx = egui::Context::default();
+    let bad = [
+        json!({"from": -1}),
+        json!({"from": 1.5}),
+        json!({"from": "one"}),
+        json!({"count": 0}),
+        json!({"count": "all"}),
+        json!({"count": -3}),
+        json!({"width": "wide"}),
+        json!({"width": true}),
+    ];
+    for params in bad {
+        let r = reply(&mut app, &ctx, "c0.thumbnails", params.clone());
+        assert_eq!(r["ok"], false, "{params}");
+        assert!(r["error"].as_str().is_some_and(|e| !e.is_empty()), "{params}: {r}");
+    }
+    let r = reply(&mut app, &ctx, "c0.thumbnails", json!([]));
+    assert_eq!(r["ok"], false);
+}

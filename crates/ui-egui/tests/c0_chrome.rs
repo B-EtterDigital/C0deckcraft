@@ -51,7 +51,10 @@ fn text(h: &egui_kittest::Harness<'_, SlideApp>) -> String {
 #[test]
 fn defaults_keep_upstream_chrome_and_about_links() {
     let app = app();
-    assert_eq!(app.chrome, Chrome { title_bar: true, file_tab: true, start_screen: true, community_links: true, status_bar: true });
+    assert_eq!(
+        app.chrome,
+        Chrome { title_bar: true, file_tab: true, start_screen: true, community_links: true, status_bar: true, slides_panel: true }
+    );
     let mut h = harness(app);
     assert!(h.query_by_label("File").is_some());
     h.state_mut().run("app.about", json!({})).unwrap();
@@ -130,6 +133,24 @@ fn all_panels_setters_are_reported_and_host_chrome_is_not_persisted() {
     assert!(app.ui.ribbon_collapsed);
     assert!(!app.ui.notes);
     assert!(!app.ui.ruler);
+}
+
+#[test]
+fn slides_panel_switch_hides_the_strip_and_restores_it() {
+    let ctx = egui::Context::default();
+    let mut h = harness(app());
+    let shown = h.state().canvas_rect.unwrap();
+    assert_eq!(c0_host::inspect(h.state())["panes"]["slides_panel"], true);
+    let reply = c0_host::handle(h.state_mut(), &ctx, "c0.set", &json!({"panels":{"slides_panel":false}})).unwrap();
+    assert_eq!(reply["applied"], json!(["panels.slides_panel"]));
+    h.run_steps(3);
+    let hidden = h.state().canvas_rect.unwrap();
+    assert!(hidden.left() < shown.left(), "the canvas takes the strip's column: {shown:?} -> {hidden:?}");
+    assert_eq!(c0_host::inspect(h.state())["panes"]["slides_panel"], false);
+    c0_host::handle(h.state_mut(), &ctx, "c0.set", &json!({"panels":{"slides_panel":true}})).unwrap();
+    h.run_steps(3);
+    assert_eq!(h.state().canvas_rect.unwrap(), shown);
+    assert_eq!(c0_host::inspect(h.state())["panes"]["slides_panel"], true);
 }
 
 #[test]

@@ -30,6 +30,7 @@ pub fn set(app: &mut SlideApp, ctx: &egui::Context, p: &Value) -> Result<Value, 
             "start_screen" => &mut app.chrome.start_screen,
             "community_links" => &mut app.chrome.community_links,
             "status_bar" => &mut app.chrome.status_bar,
+            "slides_panel" => &mut app.chrome.slides_panel,
             "ribbon_collapsed" => &mut app.ui.ribbon_collapsed,
             "notes" => &mut app.ui.notes,
             "ruler" => &mut app.ui.ruler,
@@ -51,6 +52,11 @@ pub fn set(app: &mut SlideApp, ctx: &egui::Context, p: &Value) -> Result<Value, 
         }
     }
     super::tools::settle(app);
+    if !app.chrome.slides_panel {
+        // Hidden, the strip neither draws nor takes the keyboard focus or a pending scroll.
+        app.slides_focused = false;
+        app.host.scroll_to = None;
+    }
     if !app.chrome.file_tab || (!app.chrome.start_screen && app.session.active().is_none()) {
         app.backstage = None;
     }
