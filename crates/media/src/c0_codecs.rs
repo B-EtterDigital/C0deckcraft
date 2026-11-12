@@ -21,7 +21,7 @@ pub fn check(bytes: &Bytes) -> Result<()> {
         match Container::sniff(bytes) {
             Container::Adts => return refuse("AAC"),
             Container::Mp4 => {
-                if let Ok(file) = deckcraft_isobmff::open(bytes) {
+                if let Ok(file) = craft_media::isobmff::open(bytes) {
                     for entry in file.tracks.iter().flat_map(|t| &t.entries) {
                         let codec = crate::video::codec_name(&entry.codec);
                         if !enabled(&codec) {
@@ -31,7 +31,7 @@ pub fn check(bytes: &Bytes) -> Result<()> {
                 }
             }
             Container::Matroska => {
-                if let Ok(file) = deckcraft_matroska::open(bytes) {
+                if let Ok(file) = craft_media::matroska::open(bytes) {
                     for track in &file.tracks {
                         let codec = crate::video::mkv_codec_name(&track.codec);
                         if !enabled(&codec) {
