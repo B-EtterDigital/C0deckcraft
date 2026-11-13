@@ -4,16 +4,16 @@
 #[cfg(feature = "patent-codecs")]
 struct H264 {
     avcc: Vec<u8>,
-    dec: deckcraft_h264::Decoder,
+    dec: craft_video::h264::decode::Decoder,
 }
 
 #[cfg(feature = "patent-codecs")]
 impl H264 {
     fn new(avcc: Vec<u8>) -> Result<H264> {
-        let dec = deckcraft_h264::Decoder::from_avcc(&avcc).map_err(dec_err)?;
+        let dec = craft_video::h264::decode::Decoder::from_avcc(&avcc).map_err(dec_err)?;
         Ok(H264 { avcc, dec })
     }
-    fn convert(p: deckcraft_h264::Picture) -> Pic {
+    fn convert(p: craft_video::h264::decode::Picture) -> Pic {
         let (w, h) = (p.width as usize, p.height as usize);
         let planes = Planes {
             y: &p.y,
@@ -42,7 +42,7 @@ impl Codec for H264 {
         self.dec.flush().into_iter().map(H264::convert).collect()
     }
     fn reset(&mut self) {
-        if let Ok(d) = deckcraft_h264::Decoder::from_avcc(&self.avcc) {
+        if let Ok(d) = craft_video::h264::decode::Decoder::from_avcc(&self.avcc) {
             self.dec = d;
         }
     }
@@ -51,20 +51,20 @@ impl Codec for H264 {
 #[cfg(feature = "patent-codecs")]
 struct Hevc {
     hvcc: Vec<u8>,
-    dec: deckcraft_hevc::Decoder,
+    dec: craft_video::hevc::decode::Decoder,
 }
 
 #[cfg(feature = "patent-codecs")]
 impl Hevc {
     fn new(hvcc: Vec<u8>) -> Result<Hevc> {
-        let dec = deckcraft_hevc::Decoder::from_hvcc(&hvcc).map_err(dec_err)?;
+        let dec = craft_video::hevc::decode::Decoder::from_hvcc(&hvcc).map_err(dec_err)?;
         Ok(Hevc { hvcc, dec })
     }
-    fn convert(p: deckcraft_hevc::Picture) -> Pic {
+    fn convert(p: craft_video::hevc::decode::Picture) -> Pic {
         let sx = u32::from(p.chroma_width < p.width);
         let sy = u32::from(p.chroma_height < p.height);
         let m = Matrix::from_code(p.color.matrix, p.height);
-        plane_pic!(&p, deckcraft_hevc::Plane, sx, sy, m, p.color.full_range, p.chroma_width == 0)
+        plane_pic!(&p, craft_video::hevc::decode::Plane, sx, sy, m, p.color.full_range, p.chroma_width == 0)
     }
 }
 
@@ -77,7 +77,7 @@ impl Codec for Hevc {
         self.dec.flush().into_iter().map(Hevc::convert).collect()
     }
     fn reset(&mut self) {
-        if let Ok(d) = deckcraft_hevc::Decoder::from_hvcc(&self.hvcc) {
+        if let Ok(d) = craft_video::hevc::decode::Decoder::from_hvcc(&self.hvcc) {
             self.dec = d;
         }
     }

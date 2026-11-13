@@ -1,23 +1,24 @@
 # Patch debt: C0deck guest page
 
-Base: upstream `main` at `55e5ee56b4b2c64973b78fda4182a78f9766fa62` (upstream pull 20261028; the
-previous base was `51eef99`, which measured the same 68 lines). Count the **added**
+Base: upstream `main` at `7a24b20c8e82fdbd3317f90f237f290e0d1c38be` (upstream pull 20261113: video
+decoders now come from craft-libs `craft-video`; the previous base `2127bd1b` measured 69 lines). Count the **added**
 column, not net changes. New files, including all host implementation/tests, do not enter this
 upstream-file ratchet. No existing asset or dependency source was changed.
 
 | File | Lines | What | Why | Offered upstream |
 |---|---:|---|---|---|
+| `Cargo.toml` | 1 | Workspace `craft-video` keeps only `vp9-decode`, `av1-decode`, `threads`; H.264/HEVC decode moved to `deckcraft-media/patent-codecs` | Workspace features unify into every user, so the page graph would pull H.264/HEVC back in | Proposed: packaging option |
 | `apps/deckcraft-web/Cargo.toml` | 8 | Opt-in page feature, default codec forwarding, explicit browser DOM capabilities | Build the existing binary for the guest page | No: page transport; codec option proposed |
 | `apps/deckcraft-web/src/main.rs` | 2 | Feature-gated page module, including native parser tests | K-41: native `cargo test` must compile | No |
 | `apps/deckcraft-web/src/web.rs` | 7 | Retain the WebRunner, attach the control queue, lend picker filters, bound page drop reads | Unpainted control passes and bounded browser files without a second app | No |
 | `crates/engine/Cargo.toml` | 4 | Forward codec defaults while permitting a disabled dependency | Preserve standalone defaults; disable codecs transitively | Proposed: packaging option |
 | `crates/engine/src/cmd/insert/picture.rs` | 1 | Check the codec policy in `media()` before insertion (moved here by the upstream split of `cmd/insert.rs`) | Return a clear app error instead of embedding restricted new media | Proposed: packaging option |
-| `crates/media/Cargo.toml` | 7 | Default-on `patent-codecs`, optional video decoder deps, optional symphonia AAC | Page graph excludes H.264/HEVC/AAC decoders | Proposed: packaging option |
+| `crates/media/Cargo.toml` | 5 | Default-on `patent-codecs` = `craft-video/h264-decode` + `craft-video/hevc-decode` + `symphonia/aac`; AAC removed from the always-on symphonia list | Page graph excludes H.264/HEVC/AAC decoders | Proposed: packaging option |
 | `crates/media/src/audio.rs` | 1 | Policy at audio decode entry | Imported restricted streams also fail clearly | Proposed: packaging option |
 | `crates/media/src/lib.rs` | 1 | Register the policy module | Share one policy across probing, decoding and insertion | Proposed: packaging option |
 | `crates/media/src/player.rs` | 1 | Populate a decoder-error slot even for restricted muted media | Autoplay/silent video must report an error instead of a blank frame | Proposed: packaging option; clock unchanged |
 | `crates/media/src/probe.rs` | 1 | Policy at probe entry | Restricted formats are not advertised as playable | Proposed: packaging option |
-| `crates/media/src/video.rs` | 6 | Include unchanged adapters gated in their own file, gate match arms and decode policy | Exclude decoder references when disabled | Proposed: packaging option |
+| `crates/media/src/video.rs` | 6 | Include upstream's H.264/HEVC adapters (now on `craft_video::{h264,hevc}::decode`) gated in their own file, gate match arms and decode policy | Exclude decoder references when disabled | Proposed: packaging option |
 | `crates/ui-egui/Cargo.toml` | 5 | Forward codec defaults; depend on opt-out-capable engine/media | Native behavior unchanged, web feature propagation | Proposed: packaging option |
 | `crates/ui-egui/src/app.rs` | 6 | Host state initialisation in `SlideApp::new`, logic tick, title and bars draw seams, and the slide strip draw gate (`slides_panel`); Backstage open/sync lifecycle (25 removed lines) moved to `c0_host/chrome.rs` | Keep host implementation in new files; host visibility guard before the existing lifecycle | No |
 | `crates/ui-egui/src/app/commands.rs` | 2 | Media preflight at the top of `run`; guard `app.links` on the community-links switch | Reject restricted playback; hidden links have no command | No |
@@ -33,9 +34,9 @@ upstream-file ratchet. No existing asset or dependency source was changed.
 | `crates/ui-egui/src/ribbon/slide_show.rs` | 1 | Delegate the existing Learn More group (five lines to one call) | No promotional button when disabled | No |
 | `crates/ui-egui/src/theme.rs` | 3 | Register overrides, one-line Tokens::get resolver, resolve widget styles on brightness changes | Runtime palette survives light/dark | Proposed: generic context-local palettes |
 
-Total: 69 added lines in modified upstream files.
+Total: 68 added lines in modified upstream files.
 
-Ratchet: 69
+Ratchet: 68
 
 “Proposed” and “Yes” identify changes suitable/intended for upstream. This executor opens no PR,
 sends no upstream messages and pushes nothing. The controller owns any actual submission.
@@ -55,9 +56,11 @@ native browser chooser. UI host methods, chrome/picker/replacement state and set
 `crates/ui-egui/src/c0_host.rs` and `c0_host/*`; colours live in `theme/host.rs`.
 `crates/media/src/c0_codecs.rs` owns the single format policy.
 
-The existing H.264/HEVC adapters are relocated unchanged from `video.rs` to
+The existing H.264/HEVC adapters are relocated from `video.rs` to
 `crates/media/src/c0_patent_codecs.rs`, included after `plane_pic!` with feature gates beside the
-adapters in that new file. Upstream Backstage opening/sync
+adapters in that new file. Their bodies match upstream's `video.rs` at the base exactly
+(`craft_video::h264::decode::{Decoder, Picture}`, `craft_video::hevc::decode::{Decoder, Picture, Plane}`);
+on every pull, diff upstream's two adapters against that file and port any change. Upstream Backstage opening/sync
 methods are relocated to `c0_host/chrome.rs`, with the host visibility guard before their existing
 lifecycle; the upstream copies in `app.rs` are deleted by the relocation. About links and the Learn
 More group are also drawn through that file. These moves
@@ -93,6 +96,9 @@ was copied; GridCraft and WordCraft were read for transport/contract patterns on
 - All 23 Color32 fields must remain registered. Brightness application must resolve the same
   context override set for ordinary egui widgets as `Tokens::get` uses for custom painting.
 - Optional codec dependency defaults must not re-enable H.264/HEVC/AAC in the isolated web graph.
+  The workspace `craft-video` line must list no `h264-*`/`hevc-*` feature (workspace features unify),
+  and no other crate in the page graph may enable them; recheck on every craft-libs rev bump with
+  `cargo tree -p deckcraft-web --no-default-features --features page-control --target wasm32-unknown-unknown -e features -i craft-video`.
   Check Cargo's resolved graph as well as both feature modes and the native media regressions.
   New containers/aliases must share `c0_codecs::check`; mixed streams must fail clearly too.
 - Recovery entropy must not call native process/time APIs on wasm. The other process-id call
